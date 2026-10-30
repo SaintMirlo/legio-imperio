@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% import "parciales/macros.html" as m %}
+{% block titulo %}Inicio{% endblock %}
+{% block contenido %}
+<section class="portada">
+  <p class="portada-sobre">Año 49 a.C. · República Romana</p>
+  <h1 class="portada-titulo">Legio Imperium</h1>
+  <p class="portada-lema">Sistema de Gestión Táctica y Simulación de Batalla del Ejército Romano</p>
+  <p class="portada-cita">«Alea iacta est»</p>
+  <div class="portada-acciones">
+    <a class="btn btn-oro btn-grande" href="{{ url_for('campana.nueva') }}">Nueva campaña</a>
+    <button type="button" class="btn btn-cabecera btn-grande" data-abrir-cargar>Cargar campaña…</button>
+  </div>
+</section>
+
+<div class="rejilla-inicio">
+  <section class="tarjeta">
+    <div class="tarjeta-titulo">
+      <h2>Campañas recientes</h2>
+      {{ m.traza("CU014 · RU010") }}
+    </div>
+    <ul class="recientes">
+      {% for c in recientes %}
+      <li>
+        <div>
+          <strong>{{ c.nombre }}</strong>
+          <span>{{ c.detalle }}</span>
+        </div>
+        <time>{{ c.guardada }}</time>
+        <a class="btn btn-secundario btn-chico" href="{{ url_for('campana.panel') }}">{{ 'Continuar' if loop.first else 'Abrir' }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="tarjeta">
+    <h2>Cómo se juega una campaña</h2>
+    <ol class="pasos-juego">
+      <li><strong>Organiza</strong> la cadena de mando: Senado, cónsules, Legatus y legiones.</li>
+      <li><strong>Recluta</strong> tropas del catálogo sin pasarte del presupuesto.</li>
+      <li><strong>Combate</strong> por turnos con Triplex Acies, Cuneus u Orbis.</li>
+      <li><strong>Revisa</strong> bajas y sueldos en la bitácora, y guarda la campaña.</li>
+    </ol>
+  </section>
+</div>
+{% endblock %}

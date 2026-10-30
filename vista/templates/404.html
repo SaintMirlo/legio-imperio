@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block titulo %}Página no encontrada{% endblock %}
+{% block contenido %}
+<section class="tarjeta vacio-grande">
+  <h1>Esta ruta no figura en los mapas del Imperio</h1>
+  <p>La página que buscas no existe en el prototipo.</p>
+  <a class="btn btn-primario" href="{{ url_for('campana.inicio') }}">Volver al inicio</a>
+</section>
+{% endblock %}

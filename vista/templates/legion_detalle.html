@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% import "parciales/macros.html" as m %}
+{% block titulo %}{{ legion.nombre }}{% endblock %}
+{% block contenido %}
+{% set t = legion.totales %}
+<div class="encabezado">
+  <div>
+    <p class="migas"><a href="{{ url_for('campana.panel') }}">Campaña</a> / {{ legion.nombre }}</p>
+    <h1>{{ legion.nombre }}</h1>
+    <p class="subtitulo">Fuerzas y recursos · Legatus {{ legion.legatus.nombre }} · Cónsul {{ legion.consul }}</p>
+  </div>
+  <div class="encabezado-acciones">
+    {{ m.traza("CU004 · RU003") }}
+    <a class="btn btn-secundario" href="{{ url_for('legiones.contratar', id_legion=legion.id) }}">Contratar tropas</a>
+    {% if legion.estado == 'lista' %}
+    <a class="btn btn-primario" href="{{ url_for('combate.preparar') }}">Preparar enfrentamiento</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if legion.estado != 'lista' %}
+<section class="tarjeta vacio-grande">
+  <h2>Esta legión todavía no tiene tropas</h2>
+  <p>El Legatus {{ legion.legatus.nombre }} dispone de {{ legion.presupuesto|miles }} denarios para reclutar. Sin tropas, la legión no puede entrar en combate.</p>
+  <a class="btn btn-primario" href="{{ url_for('legiones.contratar', id_legion=legion.id) }}">Contratar tropas</a>
+</section>
+{% else %}
+<dl class="kpis">
+  <div><dt>Soldados vivos</dt><dd>{{ t.soldados|miles }}</dd></div>
+  <div><dt>HP total</dt><dd>{{ t.hp|miles }}</dd></div>
+  <div><dt>ATK total</dt><dd>{{ t.atk|miles }}</dd></div>
+  <div><dt>DEF total</dt><dd>{{ t.def|miles }}</dd></div>
+  <div><dt>Sueldos por turno</dt><dd>{{ legion.mantenimiento.total|miles }}</dd></div>
+  <div><dt>Denarios disponibles</dt><dd>{{ legion.presupuesto|miles }}</dd></div>
+</dl>
+
+<div class="rejilla-detalle">
+  <section class="tarjeta">
+    <div class="tarjeta-titulo">
+      <h2>Contingente</h2>
+      <p class="nota">ATK y DEF incluyen los bonos del Legatus y de los ingenieros.</p>
+    </div>
+    <div class="tabla-desplazable">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Unidad</th>
+            <th class="num">Vivos</th>
+            <th>Proporción</th>
+            <th class="num">HP</th>
+            <th class="num">ATK</th>
+            <th class="num">DEF</th>
+            <th class="num">Sueldo base</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in legion.fuerzas %}
+          {% set pct = f.vivos|porcentaje(t.soldados) %}
+          <tr{{ ' class="fila-nula"'|safe if not f.vivos }}>
+            <td class="nowrap"><span class="punto u-{{ f.tipo }}"></span>{{ unidades[f.tipo].plural }}</td>
+            <td class="num">{{ f.vivos|miles }}</td>
+            <td>
+              <div class="proporcion">
+                <div class="mini-barra"><span class="u-{{ f.tipo }}" style="width: {{ '%.1f'|format(pct) }}%"></span></div>
+                <small>{{ pct|decimal }}%</small>
+              </div>
+            </td>
+            <td class="num">{{ f.hp|miles }}</td>
+            <td class="num">{{ f.atk|miles }}</td>
+            <td class="num">{{ f.def|miles }}</td>
+            <td class="num">{{ f.sueldo|miles }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th>Total</th>
+            <th class="num">{{ t.soldados|miles }}</th>
+            <th></th>
+            <th class="num">{{ t.hp|miles }}</th>
+            <th class="num">{{ t.atk|miles }}</th>
+            <th class="num">{{ t.def|miles }}</th>
+            <th class="num">{{ legion.mantenimiento.base|miles }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </section>
+
+  <div class="columna">
+    <section class="tarjeta">
+      <h2>Legatus {{ legion.legatus.nombre }}</h2>
+      <ul class="bonos bonos-grandes">
+        <li>ATK {{ legion.legatus.atk|signo }}</li>
+        <li>DEF {{ legion.legatus.def|signo }}</li>
+        <li>Costo {{ legion.legatus.costo|signo }}</li>
+      </ul>
+      <p class="nota">Designado por el cónsul {{ legion.consul }}.</p>
+    </section>
+    <section class="tarjeta">
+      <h2>Bonificaciones y sinergias</h2>
+      <ul class="lista-sinergias">
+        {% for sinergia in legion.sinergias %}
+        <li>{{ sinergia }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    <section class="tarjeta">
+      <h2>Sueldos por turno</h2>
+      {{ m.cuentas_mantenimiento(legion.mantenimiento, legion.legatus) }}
+    </section>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

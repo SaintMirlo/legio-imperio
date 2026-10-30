@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% import "parciales/macros.html" as m %}
+{% block titulo %}Panel de campaña{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div>
+    <p class="migas">Campaña creada el {{ campana.creada }}</p>
+    <h1>{{ campana.nombre }}</h1>
+    <p class="subtitulo">Panel de gestión: cadena de mando, legiones y recursos.</p>
+  </div>
+  <div class="encabezado-acciones">
+    {{ m.traza("CU001 · CU004 · RU001 · RU003") }}
+    <a class="btn btn-secundario" href="{{ url_for('legiones.nueva') }}">+ Crear legión</a>
+    <a class="btn btn-primario" href="{{ url_for('combate.preparar') }}">Preparar enfrentamiento</a>
+  </div>
+</div>
+
+<dl class="kpis">
+  <div><dt>Legiones</dt><dd>{{ legiones|length }}</dd></div>
+  <div><dt>Listas para combatir</dt><dd>{{ legiones.values()|selectattr('estado', 'equalto', 'lista')|list|length }}</dd></div>
+  <div><dt>Soldados</dt><dd>{{ legiones.values()|sum(attribute='totales.soldados')|miles }}</dd></div>
+  <div><dt>Denarios disponibles</dt><dd>{{ legiones.values()|sum(attribute='presupuesto')|miles }}</dd></div>
+</dl>
+
+<section class="tarjeta">
+  <div class="tarjeta-titulo">
+    <h2>Cadena de mando</h2>
+    <p class="nota">Elige una legión para ver sus fuerzas.</p>
+  </div>
+  <div class="organigrama">
+    <ul>
+      <li>
+        <div class="nodo nodo-senado"><small>Senado</small>SPQR</div>
+        <ul>
+          {% for consul in campana.consules %}
+          <li>
+            <div class="nodo nodo-consul"><small>Cónsul</small>{{ consul.nombre }}</div>
+            <ul>
+              {% for id in consul.legiones %}
+              {% set legion = legiones[id] %}
+              <li>
+                <div class="nodo nodo-legatus"><small>Legatus</small>{{ legion.legatus.nombre }}</div>
+                <ul>
+                  <li>
+                    <a class="nodo nodo-legion{{ ' nodo-vacio' if legion.estado != 'lista' }}" href="{{ url_for('legiones.detalle', id_legion=id) }}">
+                      <small>{{ 'Legión' if legion.estado == 'lista' else 'Legión sin tropas' }}</small>{{ legion.nombre }}
+                    </a>
+                  </li>
+                </ul>
+              </li>
+              {% endfor %}
+            </ul>
+          </li>
+          {% endfor %}
+        </ul>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<div class="seccion-titulo">
+  <h2>Legiones</h2>
+  {{ m.leyenda() }}
+</div>
+<div class="rejilla-legiones">
+  {% for legion in legiones.values() %}
+  <article class="tarjeta legion">
+    <header class="legion-cabecera">
+      <h3><a href="{{ url_for('legiones.detalle', id_legion=legion.id) }}">{{ legion.nombre }}</a></h3>
+      {% if legion.estado == 'lista' %}
+      <span class="etiqueta etiqueta-ok">Lista</span>
+      {% else %}
+      <span class="etiqueta etiqueta-aviso">Sin tropas</span>
+      {% endif %}
+    </header>
+    <p class="legion-mando">Legatus {{ legion.legatus.nombre }} · Cónsul {{ legion.consul }}</p>
+    <ul class="bonos">
+      <li>ATK {{ legion.legatus.atk|signo }}</li>
+      <li>DEF {{ legion.legatus.def|signo }}</li>
+      <li>Costo {{ legion.legatus.costo|signo }}</li>
+    </ul>
+    {% if legion.estado == 'lista' %}
+    <dl class="mini-kpis">
+      <div><dt>Soldados</dt><dd>{{ legion.totales.soldados|miles }}</dd></div>
+      <div><dt>ATK</dt><dd>{{ legion.totales.atk|miles }}</dd></div>
+      <div><dt>DEF</dt><dd>{{ legion.totales.def|miles }}</dd></div>
+      <div><dt>Denarios</dt><dd>{{ legion.presupuesto|miles }}</dd></div>
+    </dl>
+    {{ m.composicion(legion.tropas, legion.totales.soldados) }}
+    {% else %}
+    <p class="vacio">Todavía no recluta tropas. Dispone de {{ legion.presupuesto|miles }} denarios.</p>
+    {% endif %}
+    <footer class="legion-acciones">
+      <a class="btn btn-fantasma btn-chico" href="{{ url_for('legiones.detalle', id_legion=legion.id) }}">Ver fuerzas</a>
+      <a class="btn btn-secundario btn-chico" href="{{ url_for('legiones.contratar', id_legion=legion.id) }}">Contratar tropas</a>
+    </footer>
+  </article>
+  {% endfor %}
+</div>
+{% endblock %}

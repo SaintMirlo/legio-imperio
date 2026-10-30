@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% import "parciales/macros.html" as m %}
+{% block titulo %}Fin de la batalla{% endblock %}
+{% block contenido %}
+{% set ganador = legiones[resultado.ganador] %}
+<div class="encabezado">
+  <div>
+    <p class="migas"><a href="{{ url_for('combate.preparar') }}">Batalla</a> / Resultado</p>
+    <h1>{{ batalla.nombre }}: fin de la batalla</h1>
+    <p class="subtitulo">Terminó al cierre del turno {{ resultado.turnos }}, al cobrar los sueldos.</p>
+  </div>
+  {{ m.traza("CU007 · CU009 · RU006") }}
+</div>
+
+<section class="victoria">
+  <p class="victoria-etiqueta">Victoria</p>
+  <h2>{{ ganador.nombre }}</h2>
+  <p>Legatus {{ ganador.legatus.nombre }} · Cónsul {{ ganador.consul }}</p>
+  <p class="victoria-motivo">{{ resultado.motivo }}</p>
+</section>
+
+<div class="rejilla-2">
+  {% for id in batalla.legiones %}
+  {% set legion = legiones[id] %}
+  {% set final = resultado.legiones[id] %}
+  {% set gano = id == resultado.ganador %}
+  <section class="tarjeta {{ 'tarjeta-ganadora' if gano else 'tarjeta-perdedora' }}">
+    <div class="tarjeta-titulo">
+      <h2>{{ legion.nombre }}</h2>
+      <span class="etiqueta {{ 'etiqueta-ok' if gano else 'etiqueta-error' }}">{{ 'Vencedora' if gano else 'Derrotada' }}</span>
+    </div>
+    {{ m.barra('HP final', final.hp, final.hp_inicial, final.hp_inicial, grande=true) }}
+
+    <h3>Tropas</h3>
+    <table class="tabla tabla-compacta">
+      <thead>
+        <tr><th>Unidad</th><th class="num">Inicio</th><th class="num">Bajas</th><th class="num">Convertidos</th><th class="num">Final</th></tr>
+      </thead>
+      <tbody>
+        {% for tipo, inicio, bajas, convertidos, quedan in final.filas %}
+        <tr{{ ' class="fila-nula"'|safe if not inicio }}>
+          <td class="nowrap"><span class="punto u-{{ tipo }}"></span>{{ unidades[tipo].plural }}</td>
+          <td class="num">{{ inicio|miles }}</td>
+          <td class="num">{% if bajas %}−{{ bajas|miles }}{% else %}—{% endif %}</td>
+          <td class="num">{% if convertidos > 0 %}+{{ convertidos }}{% elif convertidos < 0 %}−{{ -convertidos }}{% else %}—{% endif %}</td>
+          <td class="num">{{ quedan|miles }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><th>Total</th><th class="num">{{ final.inicio|miles }}</th><th class="num">−{{ final.bajas|miles }}</th><th></th><th class="num">{{ final.final|miles }}</th></tr>
+      </tfoot>
+    </table>
+
+    <h3>Denarios</h3>
+    <dl class="cuentas cuentas-chicas">
+      {% for concepto, monto in final.economia %}
+      <div><dt>{{ concepto }}</dt><dd>{{ monto|miles }}</dd></div>
+      {% endfor %}
+      <div class="cuentas-total"><dt>Saldo final</dt><dd>{{ final.saldo|miles }}</dd></div>
+      {% if final.deuda %}
+      <div class="negativo"><dt>Sueldos del turno 2 sin pagar</dt><dd>{{ final.deuda|miles }}</dd></div>
+      {% endif %}
+    </dl>
+  </section>
+  {% endfor %}
+</div>
+
+<section class="tarjeta leccion">
+  <h2>Lectura de la batalla</h2>
+  <p>{{ resultado.leccion }}</p>
+  <ol class="consola-lineas consola-clara">
+    {% for e in eventos %}
+    <li class="evento evento-{{ e.tipo }}">
+      <time>{{ e.instante[-8:] }}</time>
+      <span class="evento-tipo">{{ tipos_evento[e.tipo] }}</span>
+      <span>{{ e.texto }}</span>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+
+<div class="acciones">
+  <a class="btn btn-fantasma" href="{{ url_for('bitacora.ver') }}">Ver bitácora completa</a>
+  <button type="button" class="btn btn-secundario" data-guardar="{{ url_for('campana.exportar') }}" data-nombre="{{ campana_actual.archivo }}">Guardar campaña</button>
+  <a class="btn btn-secundario" href="{{ url_for('campana.panel') }}">Volver al panel</a>
+  <a class="btn btn-primario" href="{{ url_for('combate.preparar') }}">Nueva batalla</a>
+</div>
+{% endblock %}

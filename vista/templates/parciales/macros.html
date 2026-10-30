@@ -1,0 +1,106 @@
+{# Casos de uso y requisitos que cubre la pantalla (trazabilidad con el informe).
+   Al pasar el mouse por cada código se ve su nombre. #}
+{% macro traza(texto) -%}
+<span class="traza" title="Casos de uso y requisitos que cubre esta pantalla">
+  {%- for codigo in texto.split(" · ") %}{{ " · " if not loop.first }}<abbr title="{{ trazabilidad[codigo] }}">{{ codigo }}</abbr>{% endfor -%}
+</span>
+{%- endmacro %}
+
+{# Barra de salud: se anima desde el valor anterior («antes») hasta el actual. #}
+{% macro barra(etiqueta, actual, maximo, antes=none, grande=false) -%}
+{%- set pct = actual|porcentaje(maximo) -%}
+{%- set pct_antes = (actual if antes is none else antes)|porcentaje(maximo) -%}
+{%- set nivel = 'alto' if pct > 60 else ('medio' if pct > 30 else 'bajo') -%}
+<div class="barra nivel-{{ nivel }}{{ ' barra-grande' if grande }}{{ ' barra-nula' if not maximo }}"
+     style="--antes: {{ '%.1f'|format(pct_antes) }}%; --ahora: {{ '%.1f'|format(pct) }}%">
+  <div class="barra-cabecera">
+    <span>{{ etiqueta }}</span>
+    <span class="num">{% if maximo %}{{ actual|miles }} / {{ maximo|miles }}{% else %}—{% endif %}</span>
+  </div>
+  <div class="barra-pista" role="progressbar" aria-label="{{ etiqueta }}" aria-valuemin="0" aria-valuemax="{{ maximo }}" aria-valuenow="{{ actual }}">
+    <div class="barra-perdida"></div>
+    <div class="barra-relleno"></div>
+  </div>
+</div>
+{%- endmacro %}
+
+{# Barra apilada con la composición de una legión por tipo de unidad. #}
+{% macro composicion(tropas, total) -%}
+<div class="composicion" role="img" aria-label="Composición de la legión">
+  {%- for clave, cantidad in tropas.items() if cantidad %}
+  <span class="u-{{ clave }}" style="width: {{ '%.2f'|format(cantidad|porcentaje(total)) }}%" title="{{ unidades[clave].plural }}: {{ cantidad|miles }}"></span>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{% macro leyenda() -%}
+<ul class="leyenda">
+  {%- for u in catalogo %}
+  <li><span class="punto u-{{ u.clave }}"></span>{{ u.plural }}</li>
+  {%- endfor %}
+</ul>
+{%- endmacro %}
+
+{# Desglose de los sueldos por turno: base, bono del Legatus y descuento por esclavos. #}
+{% macro cuentas_mantenimiento(mant, legatus, titulo='Por turno') -%}
+<dl class="cuentas cuentas-chicas">
+  <div><dt>Sueldos base</dt><dd>{{ mant.base|miles }}</dd></div>
+  <div><dt>Legatus ({{ legatus.costo|signo }})</dt><dd>{{ '+' if mant.legatus > 0 }}{{ mant.legatus|miles }}</dd></div>
+  <div><dt>Esclavos ({{ mant.esclavos }} → −{{ mant.esclavos_pct }}%)</dt><dd>−{{ mant.descuento|miles }}</dd></div>
+  <div class="cuentas-total"><dt>{{ titulo }}</dt><dd>{{ mant.total|miles }}</dd></div>
+</dl>
+{%- endmacro %}
+
+{# Panel de una legión en la consola de batalla. #}
+{% macro panel_legion(legion, actual, anterior, batalla) -%}
+{%- set estado = actual.estado[legion.id] -%}
+{%- set previo = anterior.estado[legion.id] -%}
+{%- set ataca = legion.id == actual.atacante -%}
+<section class="tarjeta panel-legion {{ 'panel-ataca' if ataca else 'panel-defiende' }}">
+  <header class="panel-legion-cabecera">
+    <span class="rol {{ 'rol-ataca' if ataca else 'rol-defiende' }}">
+      {%- if actual.etapa %}{{ 'Ataca' if ataca else 'Defiende' }}{% else %}{{ 'Ataca primero' if ataca else 'Defiende primero' }}{% endif -%}
+    </span>
+    <h2>{{ legion.nombre }}</h2>
+    <p>Legatus {{ legion.legatus.nombre }} · ATK {{ legion.legatus.atk|signo }} · DEF {{ legion.legatus.def|signo }}</p>
+  </header>
+
+  <label class="campo formacion">
+    <span>Formación táctica</span>
+    <select name="formacion_{{ legion.id }}" form="form-siguiente"{{ ' disabled' if not actual.formaciones_editables }}>
+      {%- for e in estrategias %}
+      <option value="{{ e.clave }}"{{ ' selected' if e.clave == estado.formacion }}>{{ e.nombre }} ({{ e.atk|signo }} ATK, {{ e.def|signo }} DEF)</option>
+      {%- endfor %}
+    </select>
+    <small>
+      {%- if actual.formaciones_editables %}{{ estado.validacion }}
+      {%- elif actual.turno == 1 %}Bloqueada: Triplex Acies es obligatoria en el primer turno.
+      {%- else %}Bloqueada hasta el final del turno.{% endif -%}
+    </small>
+  </label>
+  {%- if actual.formaciones_editables %}
+  {# CU003 extiende CU006: al elegir la formación, la legión puede contratar más tropas. #}
+  <a class="btn btn-secundario btn-chico" href="{{ url_for('combate.contratar', id_legion=legion.id) }}">+ Contratar tropas</a>
+  {%- endif %}
+
+  {{ barra('HP total', estado.hp, batalla.hp_inicial[legion.id], previo.hp, grande=true) }}
+
+  <dl class="stats">
+    <div><dt>ATK total</dt><dd>{{ estado.atk|miles }}</dd></div>
+    <div><dt>DEF total</dt><dd>{{ estado.def|miles }}</dd></div>
+    <div><dt>Denarios</dt><dd>{{ estado.presupuesto|miles }}</dd></div>
+  </dl>
+
+  <div class="barras-tropas">
+    {%- for u in catalogo %}
+    {{ barra(u.plural, estado.vivos[u.clave], batalla.tropas_iniciales[legion.id][u.clave], previo.vivos[u.clave]) }}
+    {%- endfor %}
+  </div>
+
+  <ul class="chips">
+    {%- for sinergia in estado.sinergias %}
+    <li>{{ sinergia }}</li>
+    {%- endfor %}
+  </ul>
+</section>
+{%- endmacro %}
