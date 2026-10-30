@@ -1,6 +1,6 @@
 """Anexa la adenda sin volver a componer las páginas del informe original.
 
-Uso: python herramientas/generar_adenda.py --original "ruta/Proyecto Ingeso.pdf"
+Uso: python herramientas/generar_adenda.py --original informe.pdf --adenda ampliacion.md --salida resultado.pdf
 Requiere las fuentes Times New Roman del informe; no las distribuye.
 """
 import argparse
@@ -17,7 +17,6 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer, Table, TableStyle
 
-RAIZ = Path(__file__).resolve().parents[1]
 ANCHO, ALTO = 596, 842
 IZQUIERDA, DERECHA = 63.7795257568, 69.7795257568
 ANCHO_TEXTO = ANCHO - IZQUIERDA - DERECHA
@@ -133,8 +132,8 @@ def crear_pagina(texto, numero, estilos_pagina):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--original", type=Path, required=True)
-    parser.add_argument("--adenda", type=Path, default=RAIZ / "docs/adenda-hito-2.md")
-    parser.add_argument("--salida", type=Path, default=RAIZ / "docs/Proyecto-Ingeso-Hito-2-ampliado.pdf")
+    parser.add_argument("--adenda", type=Path, required=True)
+    parser.add_argument("--salida", type=Path, required=True)
     parser.add_argument("--fuentes", type=Path, default=Path("C:/Windows/Fonts"))
     args = parser.parse_args()
     if args.original.resolve() == args.salida.resolve():
@@ -155,8 +154,8 @@ def main():
     for numero, texto in enumerate(paginas, 21):
         escritor.append(crear_pagina(texto, numero, estilos_pagina))
     escritor.add_outline_item("Complementos de la especificación", 20)
-    escritor.add_outline_item("Plan de pruebas del Hito 2", 25)
-    escritor.add_metadata({"/Title": "Proyecto Ingeso Hito 2 con adenda 2.1", "/Author": "Los Apóstrofes"})
+    escritor.add_outline_item("Plan de pruebas", 25)
+    escritor.add_metadata({"/Title": "Proyecto Ingeso ampliación 2.1", "/Author": "Los Apóstrofes"})
     salida = BytesIO()
     escritor.write(salida)
     salida.seek(0)

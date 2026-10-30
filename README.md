@@ -87,19 +87,6 @@ El prototipo sigue el diagrama de casos de uso nuevo. El Jugador inicia directam
 9. **Bitácora**: filtrar por turno, tipo de evento o texto.
 10. *Guardar campaña* y *Cargar campaña* desde la cabecera.
 
-## Documentación del Proyecto Ingeso
-
-- [Revisión del DERS y decisiones de alcance](docs/revision-ders-hito-2.md).
-- [Informe ampliado del Hito 2](docs/Proyecto-Ingeso-Hito-2-ampliado.pdf): conserva las 20 páginas del informe original y agrega una adenda de ocho páginas con el mismo formato.
-- [Texto de la adenda](docs/adenda-hito-2.md): control de versiones, alcance, calidad, arquitectura 4+1, riesgos y plan de pruebas acotado.
-
-Para regenerar el PDF, instala las dependencias de documentación en un entorno separado y proporciona el informe original. El generador requiere Times New Roman y nunca sobrescribe el archivo original:
-
-```bash
-pip install -r herramientas/requirements.txt
-python herramientas/generar_adenda.py --original "ruta/Proyecto Ingeso.pdf"
-```
-
 ## Verificación del prototipo
 
 ```bash
