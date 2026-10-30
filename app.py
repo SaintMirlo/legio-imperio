@@ -2,21 +2,31 @@
 
 Uso: python app.py y abrir http://127.0.0.1:8000
 """
+import os
 import secrets
 
 from flask import Flask
 
 from controlador import registrar_controladores
+from modelo.prototipo import RepositorioPrototipo
+from vista import registrar_contexto
 from vista.formato import registrar_filtros
 from vista.trazabilidad import registrar_trazabilidad
 
 
-def crear_app():
+def crear_app(config=None):
     app = Flask(__name__, template_folder="vista/templates", static_folder="vista/static")
-    # Firma la cookie de los mensajes flash; el prototipo no guarda datos de sesión.
-    app.secret_key = secrets.token_hex(16)
+    app.config.from_mapping(
+        SECRET_KEY=os.environ.get("LEGIO_SECRET_KEY") or secrets.token_hex(32),
+        MAX_CONTENT_LENGTH=1024 * 1024,
+    )
+    if config:
+        app.config.update(config)
+    # Cada aplicación tiene su escenario; las peticiones no modifican las cifras.
+    app.extensions["prototipo"] = RepositorioPrototipo()
     registrar_filtros(app)
     registrar_trazabilidad(app)
+    registrar_contexto(app)
     registrar_controladores(app)
     return app
 

@@ -39,6 +39,7 @@
       const nombre = boton.dataset.nombre;
       try {
         const respuesta = await fetch(boton.dataset.guardar);
+        if (!respuesta.ok) throw new Error("No se pudo descargar el ejemplo");
         const contenido = await respuesta.blob();
         if ("showSaveFilePicker" in window) {
           const archivo = await window.showSaveFilePicker({
@@ -48,14 +49,14 @@
           const escritura = await archivo.createWritable();
           await escritura.write(contenido);
           await escritura.close();
-          avisar(`Campaña guardada en «${archivo.name}».`, "exito");
+          avisar(`Ejemplo del Hito 2 guardado en «${archivo.name}».`, "exito");
         } else {
           const enlace = document.createElement("a");
           enlace.href = URL.createObjectURL(contenido);
           enlace.download = nombre;
           enlace.click();
-          URL.revokeObjectURL(enlace.href);
-          avisar(`Campaña guardada como «${nombre}».`, "exito");
+          setTimeout(() => URL.revokeObjectURL(enlace.href), 1000);
+          avisar(`Ejemplo del Hito 2 guardado como «${nombre}».`, "exito");
         }
       } catch (error) {
         if (error.name === "AbortError") avisar("Guardado cancelado.", "info");

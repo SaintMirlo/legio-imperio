@@ -3,61 +3,54 @@ import json
 
 from flask import Blueprint, Response, flash, redirect, render_template, request, url_for
 
-from modelo import datos_prototipo as datos
+from controlador.prototipo import obtener_prototipo
+from modelo.prototipo import ArchivoCampanaInvalido, validar_archivo_campana
 
 bp = Blueprint("campana", __name__)
 
 
 @bp.get("/")
 def inicio():
-    return render_template("inicio.html", recientes=datos.CAMPANAS_RECIENTES)
+    return render_template("inicio.html", recientes=obtener_prototipo().recientes())
 
 
 @bp.route("/campana/nueva", methods=["GET", "POST"])
 def nueva():
     if request.method == "POST":
-        nombre = request.form.get("nombre", "").strip() or datos.CAMPANA["nombre"]
-        flash(f"Campaña «{nombre}» creada. El Senado ya tiene a sus dos cónsules.", "exito")
+        nombre = request.form.get("nombre", "").strip() or "Nueva campaña"
+        flash(f"Creación simulada de «{nombre}». El recorrido continúa con la campaña de ejemplo del Hito 2.", "info")
         return redirect(url_for("campana.panel"))
-    return render_template("campana_nueva.html", campana=datos.CAMPANA)
+    return render_template("campana_nueva.html", campana=obtener_prototipo().campana())
 
 
 @bp.get("/campana")
 def panel():
-    return render_template("campana_panel.html", campana=datos.CAMPANA, legiones=datos.LEGIONES)
+    return render_template("campana_panel.html", **obtener_prototipo().contexto_campana())
 
 
 @bp.get("/campana/exportar")
 def exportar():
-    """Archivo de la campaña que se guarda. En el Hito 3 lo arma GestorPersistencia."""
-    contenido = {
-        "formato": "legio-imperium",
-        "version": 1,
-        "guardada": "29-10-2026 18:33:10",
-        "campana": datos.CAMPANA["nombre"],
-        "consules": datos.CAMPANA["consules"],
-        "legiones": [
-            {clave: legion[clave] for clave in ("id", "nombre", "consul", "legatus", "presupuesto", "tropas")}
-            for legion in datos.LEGIONES.values()
-        ],
-        "batalla": {"nombre": datos.BATALLA["nombre"], "turno": 2, "etapa": 2},
-        "bitacora": [
-            {clave: evento[clave] for clave in ("instante", "turno", "etapa", "tipo", "texto")}
-            for evento in datos.EVENTOS
-        ],
-    }
+    """Descarga el ejemplo; la persistencia de una partida corresponde al Hito 3."""
+    prototipo = obtener_prototipo()
+    contenido = prototipo.archivo_de_ejemplo()
     return Response(
         json.dumps(contenido, ensure_ascii=False, indent=2),
         mimetype="application/json",
-        headers={"Content-Disposition": f'attachment; filename="{datos.CAMPANA["archivo"]}"'},
+        headers={"Content-Disposition": f'attachment; filename="{prototipo.campana()["archivo"]}"'},
     )
 
 
 @bp.post("/campana/cargar")
 def cargar():
     archivo = request.files.get("archivo")
-    if archivo is None or not archivo.filename.lower().endswith(".json"):
+    if archivo is None or not (archivo.filename or "").lower().endswith(".json"):
         flash("Ese archivo no es una campaña de Legio Imperium. Elige un archivo .json.", "error")
-        return redirect(request.referrer or url_for("campana.inicio"))
-    flash(f"Campaña cargada desde «{archivo.filename}»: {datos.CAMPANA['nombre']}, 4 legiones.", "exito")
+        return redirect(url_for("campana.inicio"))
+    try:
+        nombre = validar_archivo_campana(json.load(archivo))
+    except (ValueError, UnicodeError, RecursionError) as error:
+        mensaje = str(error) if isinstance(error, ArchivoCampanaInvalido) else "El archivo no contiene un JSON válido."
+        flash(mensaje, "error")
+        return redirect(url_for("campana.inicio"))
+    flash(f"Archivo de «{nombre}» validado. En el Hito 2 se muestra la campaña de ejemplo; todavía no se restaura una partida.", "info")
     return redirect(url_for("campana.panel"))

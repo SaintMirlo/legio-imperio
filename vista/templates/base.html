@@ -27,7 +27,8 @@
         <span class="campana-actual" title="Campaña abierta">{{ campana_actual.nombre }}</span>
         <button type="button" class="btn btn-cabecera" data-guardar="{{ url_for('campana.exportar') }}" data-nombre="{{ campana_actual.archivo }}">Guardar campaña</button>
         <form class="form-cargar" action="{{ url_for('campana.cargar') }}" method="post" enctype="multipart/form-data">
-          <label class="btn btn-cabecera">Cargar campaña<input type="file" name="archivo" accept=".json,application/json" data-cargar hidden></label>
+          <button type="button" class="btn btn-cabecera" data-abrir-cargar>Cargar campaña</button>
+          <input type="file" name="archivo" accept=".json,application/json" data-cargar hidden>
         </form>
       </div>
     </div>

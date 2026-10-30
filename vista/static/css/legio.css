@@ -583,7 +583,8 @@ input.cantidad { width: 6.5em; text-align: right; }
 .filtros { display: grid; grid-template-columns: 180px 200px 1fr auto; align-items: end; gap: 12px; margin-bottom: 12px; }
 .filtros .campo { margin: 0; }
 .filtros-cuenta { margin: 0 0 0.6em; font-size: 0.9rem; color: var(--tinta-3); white-space: nowrap; }
-.visor-bitacora { max-height: 62vh; overflow-y: auto; border: 1px solid var(--borde); border-radius: 10px; background: #fffdf8; }
+.visor-bitacora { max-height: 62vh; overflow: auto; border: 1px solid var(--borde); border-radius: 10px; background: #fffdf8; }
+.bitacora { min-width: 860px; }
 .bitacora thead th { position: sticky; top: 0; z-index: 1; background: #fffdf8; }
 .bitacora td { font-size: 0.92rem; }
 .vacio-filtro { padding: 16px; text-align: center; }

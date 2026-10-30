@@ -1,1 +1,1 @@
-"""Modelo (M de MVC). En el Hito 2 solo contiene los datos fijos del prototipo."""
+"""Modelo del Hito 2: catálogos, escenario fijo y consultas sin dependencias de Flask."""

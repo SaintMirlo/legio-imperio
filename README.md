@@ -87,11 +87,34 @@ El prototipo sigue el diagrama de casos de uso nuevo. El Jugador inicia directam
 9. **Bitácora**: filtrar por turno, tipo de evento o texto.
 10. *Guardar campaña* y *Cargar campaña* desde la cabecera.
 
+## Documentación del Proyecto Ingeso
+
+- [Revisión del DERS y decisiones de alcance](docs/revision-ders-hito-2.md).
+- [Informe ampliado del Hito 2](docs/Proyecto-Ingeso-Hito-2-ampliado.pdf): conserva las 20 páginas del informe original y agrega una adenda de ocho páginas con el mismo formato.
+- [Texto de la adenda](docs/adenda-hito-2.md): control de versiones, alcance, calidad, arquitectura 4+1, riesgos y plan de pruebas acotado.
+
+Para regenerar el PDF, instala las dependencias de documentación en un entorno separado y proporciona el informe original. El generador requiere Times New Roman y nunca sobrescribe el archivo original:
+
+```bash
+pip install -r herramientas/requirements.txt
+python herramientas/generar_adenda.py --original "ruta/Proyecto Ingeso.pdf"
+```
+
+## Verificación del prototipo
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Incluye tres pruebas unitarias, cuatro de integración y una de aceptación del recorrido. No valida las reglas de combate ni la persistencia del Hito 3.
+
+Los catálogos oficiales están en `modelo/catalogos.py`; las fotografías de la demostración, en `modelo/datos_prototipo.py`. `RepositorioPrototipo` centraliza las consultas y devuelve copias para conservar el escenario. Los controladores no dependen de las constantes internas del ejemplo.
+
 ## Qué es «de mentira»
 
-- Todas las cifras salen de `modelo/datos_prototipo.py`. Se calcularon a mano siguiendo las reglas del enunciado para que la batalla de ejemplo sea creíble.
+- Las cifras de la batalla salen de `modelo/datos_prototipo.py`. Se prepararon a mano como ejemplo; no acreditan la implementación de las reglas del enunciado.
 - Los formularios no guardan nada: muestran un mensaje y pasan a la pantalla siguiente.
 - La batalla siempre recorre las mismas etapas, sin importar las formaciones que se elijan ni las tropas que se contraten en el turno 2.
-- *Guardar campaña* escribe un archivo JSON de ejemplo. En Chrome y Edge abre el diálogo «Guardar como»; en Firefox y Safari lo descarga.
-- *Cargar campaña* abre el selector de archivos y solo revisa que el archivo sea `.json`.
+- *Guardar campaña* escribe un JSON de la configuración inicial de ejemplo, identificado como `prototipo-hito-2`; no guarda el paso actual de combate. En los navegadores que lo permiten abre «Guardar como»; en los demás lo descarga.
+- *Cargar campaña* abre el selector y valida extensión, JSON, versión, estructura y relaciones básicas. Acepta archivos de hasta 1 MB. Muestra el ejemplo y un aviso; no restaura una partida.
 - Las fuentes (Cinzel y Source Sans 3) se cargan desde Google Fonts. Sin internet, el navegador usa sus fuentes de sistema.
