@@ -1,0 +1,228 @@
+{# Fragmento de la consola: se reemplaza completo tras cada paso (fetch) o se incluye en la página. #}
+{% import "parciales/macros.html" as m %}
+{% set en_curso = enfrentamiento.en_curso %}
+{% set preparacion = en_curso and turno.fase == 'preparacion' %}
+{% set pa = enfrentamiento.participantes.a.nombre %}
+{% set pb = enfrentamiento.participantes.b.nombre %}
+<div class="batalla" data-paso="{{ enfrentamiento.pasos }}" data-en-curso="{{ 1 if en_curso else 0 }}" data-fase="{{ turno.fase }}">
+  {% if mensaje %}<div class="mensaje mensaje-{{ nivel }} mensaje-consola" role="alert">{{ mensaje }}</div>{% endif %}
+
+  <form id="form-avanzar" class="panel barra-turno" method="post" action="{{ url_for('combate.avanzar') }}">
+    <input type="hidden" name="paso" value="{{ enfrentamiento.pasos }}">
+    <input type="hidden" name="visto" value="{{ ultimo_evento }}">
+    <div class="turno-estado">
+      <p class="migas">Turno {{ turno.numero }} · máximo {{ limites.turnos }}</p>
+      <h2>{% if en_curso %}{{ fases[turno.fase] }}{% else %}{{ estados_combate[enfrentamiento.estado] }}{% endif %}</h2>
+      {% set orden = ['preparacion', 'etapa_1', 'etapa_2', 'cerrado'] %}
+      {% set actual = orden.index(turno.fase) %}
+      <ol class="fases" aria-label="Fases del turno">
+        {% for clave, texto in [('preparacion', 'Preparación'), ('etapa_1', 'Etapa 1: ataca ' ~ pa), ('etapa_2', 'Etapa 2: ataca ' ~ pb), ('cerrado', 'Sueldos')] %}
+        <li class="{{ 'hecha' if loop.index0 < actual or (loop.index0 == actual and loop.index0 > 0) }}{{ ' siguiente' if en_curso and loop.index0 == actual + 1 }}">{{ texto }}</li>
+        {% endfor %}
+      </ol>
+    </div>
+
+    {% if en_curso %}
+    <div class="turno-acciones">
+      {% if turno.fase == 'preparacion' %}
+        {% set boton = 'Resolver etapa 1 →' %}
+        {% set ayuda = 'Fija las formaciones' ~ (', aplica las conversiones' if turno.numero > 1 else '') ~ ' y ' ~ pa ~ ' ataca a ' ~ pb ~ '. Daño = ATK total − DEF total.' %}
+      {% elif turno.fase == 'etapa_1' %}
+        {% set boton = 'Resolver etapa 2 →' %}
+        {% set ayuda = 'Se invierten los roles: ' ~ pb ~ ' ataca a ' ~ pa ~ '. Los atributos se recalculan con las tropas que sobrevivieron.' %}
+      {% else %}
+        {% set boton = 'Pagar sueldos y cerrar turno →' %}
+        {% set ayuda = 'Cada legión paga los sueldos de sus tropas. La que no pueda pagarlos pierde el enfrentamiento.' %}
+      {% endif %}
+      {% call m.accion(ayuda, 'accion-paso') %}
+        <button class="boton boton-acento" type="submit" data-paso-boton>{{ boton }}</button>
+      {% endcall %}
+      {% call m.accion("Avanza solo, paso tras paso, con las formaciones elegidas. Se detiene al terminar, ante un error o si editas una decisión.") %}
+        <button class="boton boton-secundario" type="button" data-auto>▶ Automático</button>
+      {% endcall %}
+      {% call m.accion("Pausa entre pasos del modo automático.") %}
+        <select class="control control-chico" data-velocidad aria-label="Velocidad del modo automático">
+          <option value="1600">Lenta</option>
+          <option value="800" selected>Normal</option>
+          <option value="250">Rápida</option>
+        </select>
+      {% endcall %}
+    </div>
+    {% else %}
+    <div class="turno-acciones">
+      <div class="resultado-breve">
+        <strong>
+          {%- if enfrentamiento.ganador %}Vence {{ enfrentamiento.participantes[enfrentamiento.ganador].nombre }}
+          {%- elif enfrentamiento.estado == 'abandonada' %}Enfrentamiento abandonado
+          {%- else %}Empate{% endif -%}
+        </strong>
+        <span>{{ enfrentamiento.motivo }}</span>
+      </div>
+      {% call m.accion("Resumen de bajas, gastos, sueldos y cada turno.") %}
+        <a class="boton boton-acento" href="{{ url_for('combate.resultado', id_enfrentamiento=enfrentamiento.id) }}">Ver resultado completo →</a>
+      {% endcall %}
+    </div>
+    {% endif %}
+  </form>
+
+  {% if proxima %}
+  {% set atk = lados[proxima.atacante].atributos %}
+  {% set dfn = lados[proxima.defensor].atributos %}
+  <p class="proxima">
+    <strong>Etapa {{ proxima.numero }}:</strong>
+    {{ lados[proxima.atacante].legion.nombre }} (ATK {{ atk.atk_x100|centesimas }}) ataca a
+    {{ lados[proxima.defensor].legion.nombre }} (DEF {{ dfn.def_x100|centesimas }}) →
+    {% if proxima.dano %}{{ proxima.dano|miles }} de daño previsto{% if dfn.dano_recibido %} (incluye +50% por Cuneus){% endif %}{% else %}la defensa resiste{% endif %}
+    {%- if preparacion %} con las formaciones actuales{% endif %}.
+    {%- if not proxima.dano %}
+    <span class="tenue">Sin daño no hay bajas: hace falta más ATK (Cuneus desde el turno 2, más caballería o ballestas) o que el rival pierda DEF.</span>
+    {%- endif %}
+  </p>
+  {% endif %}
+
+  <div class="lados">
+    {% for lado in ['a', 'b'] %}
+    {% set v = lados[lado] %}
+    {% set esclavos = v.legion.unidades['esclavo']|length %}
+    <section class="panel lado lado-{{ lado }}{{ ' lado-golpeado' if v.golpeado }}">
+      <header class="lado-cabecera">
+        <span class="rol">{{ 'Ataca en la etapa 1 · defiende en la 2' if lado == 'a' else 'Defiende en la etapa 1 · ataca en la 2' }}</span>
+        <h2>{{ v.legion.nombre }}</h2>
+        <p>Legatus {{ v.legion.legatus.describir() }}</p>
+      </header>
+
+      <div class="decision">
+        <label class="campo">
+          <span class="campo-etiqueta">Formación del turno {{ turno.numero }}</span>
+          <select class="control" name="formacion_{{ lado }}" form="form-avanzar" data-decision
+                  {{ 'disabled' if not preparacion or turno.numero == 1 }}>
+            {% for o in v.opciones %}
+            {% set e = o.estrategia %}
+            <option value="{{ e.clave }}"{{ ' selected' if e.clave == turno.formaciones[lado] }}>{{ e.nombre }} ({{ e.mod_atk|signo }} ATK, {{ e.mod_def|signo }} DEF){{ ' · ' ~ o.motivo if o.motivo }}</option>
+            {% endfor %}
+          </select>
+          <span class="campo-ayuda">
+            {%- if not en_curso %}Formación con la que terminó el enfrentamiento.
+            {%- elif preparacion and turno.numero == 1 %}Bloqueada: en el primer turno ambas legiones forman en Triplex Acies.
+            {%- elif preparacion %}Se fija al resolver la etapa 1 y no cambia hasta el turno siguiente. Cuneus requiere caballería; Orbis, legionarios.
+            {%- else %}Fija hasta el final del turno {{ turno.numero }}.{% endif -%}
+          </span>
+        </label>
+
+        {% if preparacion and turno.numero > 1 %}
+        <fieldset class="conversion">
+          <legend>Convertir esclavos <span class="tenue">({{ esclavos|miles }} disponibles)</span></legend>
+          <div class="campo-fila">
+            <label class="campo campo-chico">
+              <span class="campo-etiqueta"><span>{{ m.icono('legionario', 'En legionarios') }} ({{ unidades.legionario.costo }} c/u)</span></span>
+              <input class="control control-numero" type="number" name="convertir_{{ lado }}_legionario" form="form-avanzar"
+                     min="0" max="{{ esclavos }}" step="1" placeholder="0" inputmode="numeric" data-decision>
+            </label>
+            <label class="campo campo-chico">
+              <span class="campo-etiqueta"><span>{{ m.icono('caballeria', 'En caballería') }} ({{ unidades.caballeria.costo }} c/u)</span></span>
+              <input class="control control-numero" type="number" name="convertir_{{ lado }}_caballeria" form="form-avanzar"
+                     min="0" max="{{ esclavos }}" step="1" placeholder="0" inputmode="numeric" data-decision>
+            </label>
+          </div>
+          <p class="campo-ayuda">Se aplica al resolver la etapa 1, pagando el precio del nuevo tipo. Primero se convierten los esclavos más heridos y llegan con HP completo. No pueden pasar a ballestas ni ingenieros.</p>
+        </fieldset>
+        {% endif %}
+      </div>
+
+      {{ m.barra(v.barras[0], grande=true) }}
+      <div class="barras-tropas">
+        {% for b in v.barras[1:] %}{{ m.barra(b) }}{% endfor %}
+      </div>
+      <p class="nota">Cada barra compara lo que queda con todo lo que tuvo en este enfrentamiento. En rojo, lo perdido en la última etapa.</p>
+
+      {{ m.tabla_fuerza(v.filas, v.atributos, v.mantenimiento, compacta=true) }}
+      <dl class="mini-kpis">
+        <div><dt>Denarios</dt><dd>{{ v.legion.presupuesto|miles }}</dd></div>
+        <div><dt>Sueldos por turno</dt><dd>{{ v.mantenimiento.total|miles }}</dd></div>
+        <div><dt>Bajas</dt><dd>{{ v.participante.total_bajas|miles }}</dd></div>
+        <div><dt>%ATK / %DEF</dt><dd>{{ v.atributos.pct_atk|signo }} / {{ v.atributos.pct_def|signo }}</dd></div>
+      </dl>
+      {{ m.chips(v.atributos.sinergias) }}
+
+      {% if preparacion %}
+      <details class="refuerzos">
+        <summary>Contratar refuerzos</summary>
+        <form method="post" action="{{ url_for('combate.refuerzos') }}" data-refuerzos novalidate>
+          <input type="hidden" name="lado" value="{{ lado }}">
+          <input type="hidden" name="visto" value="{{ ultimo_evento }}">
+          <div class="rejilla-refuerzos">
+            {% for u in catalogo %}
+            <label class="campo campo-chico">
+              <span class="campo-etiqueta"><span>{{ m.icono(u.clave, u.plural) }} ({{ u.costo }})</span></span>
+              <input class="control control-numero" type="number" name="refuerzo_{{ lado }}_{{ u.clave }}" min="0" step="1"
+                     placeholder="0" inputmode="numeric" data-decision>
+            </label>
+            {% endfor %}
+          </div>
+          {% call m.accion("Paga el costo del catálogo con los " ~ v.legion.presupuesto|miles ~ " denarios de la legión. Solo en la preparación de un turno.") %}
+            <button class="boton boton-secundario boton-chico" type="submit">Contratar refuerzos</button>
+          {% endcall %}
+        </form>
+      </details>
+      {% endif %}
+    </section>
+    {% endfor %}
+  </div>
+
+  <div class="rejilla-2 rejilla-consola">
+    <section class="panel">
+      <h2>Último paso</h2>
+      {% if ultima_etapa %}
+        {% set e = ultima_etapa %}
+        {% set atacante = enfrentamiento.participantes[e.atacante].nombre %}
+        {% set defensor = enfrentamiento.participantes[e.defensor].nombre %}
+        <p class="resumen-etapa">Etapa {{ e.numero }} del turno {{ turno_etapa.numero }}: <strong>{{ atacante }}</strong> atacó a <strong>{{ defensor }}</strong>.</p>
+        <dl class="cuentas">
+          <div><dt>ATK total de {{ atacante }}</dt><dd>{{ e.atk_x100|centesimas }}</dd></div>
+          <div><dt>DEF total de {{ defensor }}</dt><dd>−{{ e.def_x100|centesimas }}</dd></div>
+          {% if e.dano != e.dano_base %}<div><dt>+50% (el defensor forma en Cuneus)</dt><dd>+{{ (e.dano - e.dano_base)|miles }}</dd></div>{% endif %}
+          <div class="cuentas-total"><dt>Daño</dt><dd>{{ e.dano|miles if e.dano else 'La defensa resiste' }}</dd></div>
+        </dl>
+        {% if e.ataques %}
+        <div class="tabla-envoltura">
+        <table class="tabla tabla-compacta">
+          <thead><tr><th>Atacan</th><th class="num">Tropas</th><th class="num">Daño</th><th class="num">Golpes</th><th class="num">Bajas</th></tr></thead>
+          <tbody>
+            {% for a in e.ataques %}
+            <tr>
+              <th scope="row">{{ m.icono(a.tipo, unidades[a.tipo].plural) }}</th>
+              <td class="num">{{ a.unidades|miles }}</td>
+              <td class="num">{{ a.presupuesto|miles }}{% if a.bono %} <span class="tenue">(+{{ a.bono }}%)</span>{% endif %}</td>
+              <td class="num">{{ a.golpes|miles }}</td>
+              <td class="num">{{ a.bajas.values()|sum|miles }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        <p class="nota">{{ defensor }} perdió {{ e.total_bajas|miles }} unidades y {{ e.hp_perdido|miles }} HP.</p>
+        {% endif %}
+      {% elif turno.fase == 'cerrado' or (preparacion and turno_anterior) %}
+        {% set cerrado = turno if turno.fase == 'cerrado' else turno_anterior %}
+        <p class="resumen-etapa">Sueldos del turno {{ cerrado.numero }}:</p>
+        <ul class="lista-simple">
+          {% for lado in ['a', 'b'] %}
+          {% set cobro = cerrado.sueldos[lado] %}
+          <li>{{ enfrentamiento.participantes[lado].nombre }} {{ 'pagó' if cobro.pagado else 'no pudo pagar' }} {{ cobro.total|miles }} denarios.</li>
+          {% endfor %}
+        </ul>
+        {% if preparacion %}<p class="nota">Reagrupación: convierte esclavos, contrata refuerzos y elige la formación del turno {{ turno.numero }}.</p>{% endif %}
+      {% else %}
+        <p class="vacio">Todavía no se resuelve ninguna etapa. Pulsa «Resolver etapa 1» o activa el modo automático.</p>
+      {% endif %}
+    </section>
+    <section class="panel">
+      <div class="panel-titulo">
+        <h2>Bitácora del enfrentamiento</h2>
+        <a class="enlace" href="{{ url_for('bitacora.ver', enfrentamiento=enfrentamiento.id) }}">Ver completa →</a>
+      </div>
+      {% if eventos_ocultos %}<p class="nota">Se muestran los últimos {{ eventos|length }} sucesos; la bitácora tiene {{ eventos_ocultos|miles }} más.</p>{% endif %}
+      {{ m.registro(eventos, visto=visto, alto='registro-consola') }}
+    </section>
+  </div>
+</div>

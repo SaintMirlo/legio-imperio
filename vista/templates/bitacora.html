@@ -4,58 +4,65 @@
 {% block contenido %}
 <div class="encabezado">
   <div>
-    <p class="migas"><a href="{{ url_for('campana.panel') }}">Campaña</a> / Bitácora</p>
+    <p class="migas"><a href="{{ url_for('campana.panel') }}">{{ campana.nombre }}</a> / Bitácora</p>
     <h1>Bitácora de campaña</h1>
-    <p class="subtitulo">Registro cronológico de «{{ campana_actual.nombre }}»: legiones, contratos, combates, bajas y sueldos.</p>
+    <p class="subtitulo">Registro cronológico de cada suceso: legiones, contratos, formaciones, ataques, bajas, sueldos y conversiones.</p>
   </div>
-  {{ m.traza("CU010 · CU012 · RU008") }}
 </div>
 
-<section class="tarjeta">
-  <form class="filtros" data-filtros-bitacora>
-    <label class="campo">
-      <span>Turno</span>
-      <select name="turno">
-        <option value="">Todos</option>
-        <option value="0">Configuración</option>
-        <option value="1">Turno 1</option>
-        <option value="2">Turno 2</option>
-      </select>
-    </label>
-    <label class="campo">
-      <span>Tipo de evento</span>
-      <select name="tipo">
-        <option value="">Todos</option>
-        {% for clave, nombre in tipos_evento.items() %}
-        <option value="{{ clave }}">{{ nombre }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label class="campo">
-      <span>Buscar</span>
-      <input type="search" name="texto" placeholder="Legión, unidad, denarios…">
-    </label>
-    <p class="filtros-cuenta" aria-live="polite"><strong data-cuenta-eventos>{{ eventos|length }}</strong> de {{ eventos|length }} eventos</p>
-  </form>
-
-  <div class="visor-bitacora">
-    <table class="tabla bitacora">
-      <thead>
-        <tr><th>Instante</th><th>Turno</th><th>Etapa</th><th>Tipo</th><th>Suceso</th></tr>
-      </thead>
-      <tbody>
-        {% for e in eventos %}
-        <tr data-turno="{{ e.turno }}" data-tipo="{{ e.tipo }}">
-          <td class="nowrap">{{ e.instante }}</td>
-          <td>{{ e.turno or '—' }}</td>
-          <td class="nowrap">{{ etapas[e.etapa] }}</td>
-          <td><span class="tipo tipo-{{ e.tipo }}">{{ tipos_evento[e.tipo] }}</span></td>
-          <td>{{ e.texto }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <p class="vacio vacio-filtro" data-sin-resultados hidden>Ningún evento coincide con el filtro.</p>
+<form class="panel filtros" method="get" data-filtros-bitacora>
+  <label class="campo">
+    <span class="campo-etiqueta">Enfrentamiento</span>
+    <select class="control" name="enfrentamiento">
+      <option value="">Toda la campaña</option>
+      {% for e in campana.enfrentamientos|reverse %}
+      <option value="{{ e.id }}"{{ ' selected' if filtros.enfrentamiento == e.id }}>{{ e.id }}. {{ e.nombre }}</option>
+      {% endfor %}
+    </select>
+    <span class="campo-ayuda">Solo los sucesos de una batalla.</span>
+  </label>
+  <label class="campo">
+    <span class="campo-etiqueta">Turno</span>
+    <select class="control" name="turno">
+      <option value="">Todos</option>
+      {% for t in turnos %}
+      <option value="{{ t }}"{{ ' selected' if filtros.turno == t }}>Turno {{ t }}</option>
+      {% endfor %}
+    </select>
+    <span class="campo-ayuda">Turno de combate en que ocurrió.</span>
+  </label>
+  <label class="campo">
+    <span class="campo-etiqueta">Tipo de suceso</span>
+    <select class="control" name="tipo">
+      <option value="">Todos</option>
+      {% for clave, nombre in tipos_evento.items() %}
+      <option value="{{ clave }}"{{ ' selected' if filtros.tipo == clave }}>{{ nombre }}</option>
+      {% endfor %}
+    </select>
+    <span class="campo-ayuda">Combate, bajas, economía, conversión…</span>
+  </label>
+  <label class="campo">
+    <span class="campo-etiqueta">Buscar texto</span>
+    <input class="control" type="search" name="q" value="{{ filtros.q }}" maxlength="60" placeholder="Por ejemplo: Cuneus">
+    <span class="campo-ayuda">Busca en la descripción del suceso.</span>
+  </label>
+  <div class="acciones acciones-filtros">
+    {% call m.accion("Aplica los filtros. Las listas se aplican solas al cambiarlas; el texto, con Enter.") %}
+      <button class="boton boton-primario boton-chico" type="submit">Filtrar</button>
+    {% endcall %}
+    {% if filtrado %}
+    {% call m.accion("Vuelve a mostrar todos los sucesos.") %}
+      <a class="boton boton-secundario boton-chico" href="{{ url_for('bitacora.ver') }}">Limpiar</a>
+    {% endcall %}
+    {% endif %}
   </div>
+</form>
+
+<section class="panel">
+  <div class="panel-titulo">
+    <h2>{{ total|miles }} {{ 'suceso' if total == 1 else 'sucesos' }}</h2>
+    <p class="panel-ayuda">Del más antiguo al más reciente; el panel se desplaza hasta el último.{% if ocultos %} Se muestran los últimos {{ eventos|length|miles }}: usa los filtros para ver el resto.{% endif %}</p>
+  </div>
+  {{ m.registro(eventos, mostrar_batalla=not filtros.enfrentamiento, alto='registro-alto') }}
 </section>
 {% endblock %}

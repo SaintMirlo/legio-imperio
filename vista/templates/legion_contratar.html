@@ -2,96 +2,81 @@
 {% import "parciales/macros.html" as m %}
 {% block titulo %}Contratar tropas · {{ legion.nombre }}{% endblock %}
 {% block contenido %}
-{# En plena batalla (refuerzo; CU003 extiende CU006) se contrata con los denarios que le quedan a la legión. #}
-{% set contrato = refuerzo.contrato if refuerzo else legion.contrato %}
-{% set presupuesto = refuerzo.presupuesto if refuerzo else legion.presupuesto_inicial %}
-{% set mantenimiento = refuerzo.mantenimiento if refuerzo else legion.mantenimiento %}
-{% set volver = url_for('combate.consola', paso=3) if refuerzo else url_for('legiones.detalle', id_legion=legion.id) %}
+{% set conteo = legion.contar() %}
 <div class="encabezado">
   <div>
-    <p class="migas">
-      {% if refuerzo %}
-      <a href="{{ url_for('combate.preparar') }}">Batalla</a> /
-      <a href="{{ volver }}">{{ batalla.nombre }} · Turno {{ turno }}</a> / Contratar tropas
-      {% else %}
-      <a href="{{ url_for('campana.panel') }}">Campaña</a> /
-      <a href="{{ volver }}">{{ legion.nombre }}</a> / Contratar tropas
-      {% endif %}
-    </p>
+    <p class="migas"><a href="{{ url_for('campana.panel') }}">{{ campana.nombre }}</a> / <a href="{{ url_for('legiones.detalle', id_legion=legion.id) }}">{{ legion.nombre }}</a> / Contratar</p>
     <h1>Contratar tropas</h1>
-    <p class="subtitulo">
-      {{ legion.nombre }} · Legatus {{ legion.legatus.nombre }} ·
-      {% if refuerzo %}Refuerzos al elegir la formación del turno {{ turno }}{% else %}Catálogo de Unidades Militares Romanas{% endif %}
-    </p>
+    <p class="subtitulo">{{ legion.nombre }} dispone de {{ legion.presupuesto|miles }} denarios. Se paga el costo del catálogo por unidad: el Legatus solo cambia los sueldos.</p>
   </div>
-  {{ m.traza("CU003 · CU006 · RU002" if refuerzo else "CU003 · RU002") }}
 </div>
 
-<form class="rejilla-contrato" method="post">
-  <section class="tarjeta">
-    <h2>Catálogo</h2>
-    <div class="tabla-desplazable">
-      <table class="tabla catalogo">
-        <thead>
-          <tr>
-            <th>Unidad</th>
-            <th class="num">HP</th>
-            <th class="num">ATK</th>
-            <th class="num">DEF</th>
-            <th class="num">Costo</th>
-            <th class="num">Cantidad</th>
-            <th class="num">Subtotal</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for u in catalogo %}
-          {% set cantidad = contrato.cantidades[u.clave] %}
-          <tr>
-            <td>
-              <div class="unidad">
-                <span class="punto u-{{ u.clave }}"></span>
-                <div><strong>{{ u.nombre }}</strong><small>{{ u.rol }}. {{ u.habilidad }}</small></div>
-              </div>
-            </td>
-            <td class="num">{{ u.hp }}</td>
-            <td class="num">{{ u.atk }}</td>
-            <td class="num">{{ u.def }}</td>
-            <td class="num">{{ u.costo }}</td>
-            <td class="num"><input class="cantidad" type="number" name="{{ u.clave }}" value="{{ cantidad }}" min="0" aria-label="Cantidad: {{ u.plural }}"></td>
-            <td class="num">{{ (cantidad * u.costo)|miles }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-        <tfoot>
-          <tr>
-            <th colspan="5">Total del contrato</th>
-            <th class="num">{{ contrato.unidades|miles }} u.</th>
-            <th class="num">{{ contrato.costo|miles }}</th>
-          </tr>
-        </tfoot>
-      </table>
+<form class="rejilla-contrato" method="post" novalidate data-contrato="{{ url_for('legiones.simular', id_legion=legion.id) }}">
+  <section class="panel">
+    <div class="panel-titulo">
+      <h2>Catálogo de unidades</h2>
+      <p class="panel-ayuda">Escribe cuántas unidades quieres de cada tipo; llegan con el HP completo.</p>
     </div>
-    <p class="nota">Costos en denarios por unidad. Se pagan una sola vez, al contratar.</p>
+    <div class="tabla-envoltura">
+    <table class="tabla tabla-catalogo">
+      <thead>
+        <tr>
+          <th scope="col">Unidad</th>
+          <th scope="col" class="num">HP</th>
+          <th scope="col" class="num">ATK</th>
+          <th scope="col" class="num">DEF</th>
+          <th scope="col" class="num">Costo</th>
+          <th scope="col" class="num">Tiene</th>
+          <th scope="col" class="num">Contratar</th>
+          <th scope="col" class="num">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in catalogo %}
+        <tr>
+          <th scope="row">
+            {{ m.icono(u.clave, u.nombre) }}
+            <small class="habilidad">{{ u.rol }}. {{ u.habilidad }}</small>
+          </th>
+          <td class="num">{{ u.hp }}</td>
+          <td class="num">{{ u.atk }}</td>
+          <td class="num">{{ u.def }}</td>
+          <td class="num">{{ u.costo }}</td>
+          <td class="num">{{ conteo[u.clave]|miles }}</td>
+          <td class="num">
+            <input class="control control-numero" type="number" name="{{ u.clave }}" min="0" max="{{ limites.integrantes }}" step="1"
+                   value="{{ valores.get(u.clave, '') }}" placeholder="0" inputmode="numeric" aria-label="Cantidad de {{ u.plural|lower }}">
+          </td>
+          <td class="num" data-subtotal="{{ u.clave }}">0</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
   </section>
 
-  <aside class="tarjeta resumen">
-    <h2>Resumen</h2>
+  <aside class="panel resumen-contrato">
+    <h2>Resumen del contrato</h2>
     <dl class="cuentas">
-      <div><dt>{{ 'Denarios que le quedan' if refuerzo else 'Presupuesto de la legión' }}</dt><dd>{{ presupuesto|miles }}</dd></div>
-      <div><dt>Costo del contrato</dt><dd>{{ '−' if contrato.costo }}{{ contrato.costo|miles }}</dd></div>
-      <div class="cuentas-total{{ ' negativo' if contrato.saldo < 0 }}"><dt>Saldo tras el contrato</dt><dd>{{ contrato.saldo|miles }}</dd></div>
+      <div><dt>Presupuesto disponible</dt><dd>{{ legion.presupuesto|miles }}</dd></div>
+      <div><dt>Costo del contrato</dt><dd data-vista="costo">0</dd></div>
+      <div class="cuentas-total"><dt>Quedarían</dt><dd data-vista="restante">{{ legion.presupuesto|miles }}</dd></div>
     </dl>
-    {% if contrato.saldo < 0 %}
-    <p class="alerta alerta-error">El contrato excede el presupuesto en {{ (-contrato.saldo)|miles }} denarios. Reduce las cantidades antes de firmar.</p>
-    {% endif %}
-    <h3>{% if refuerzo %}Sueldos estimados del turno {{ turno }}{% else %}Sueldos estimados por turno{% endif %}</h3>
-    {{ m.cuentas_mantenimiento(mantenimiento, legion.legatus) }}
-    {% if refuerzo and refuerzo.nota %}<p class="alerta alerta-info">{{ refuerzo.nota }}</p>{% endif %}
-    {% if refuerzo and refuerzo.aviso %}<p class="alerta alerta-aviso">{{ refuerzo.aviso }}</p>{% endif %}
-    <p class="nota">El %Costo del Legatus solo se aplica a los sueldos. Cada 50 esclavos descuentan 15%.</p>
+    <dl class="mini-kpis mini-kpis-2">
+      <div><dt>Integrantes</dt><dd data-vista="integrantes">{{ legion.integrantes()|miles }}</dd></div>
+      <div><dt>Sueldos por turno</dt><dd data-vista="mantenimiento">{{ legion.calcular_mantenimiento().total|miles }}</dd></div>
+      <div><dt>ATK total</dt><dd data-vista="atk">{{ legion.calcular_atributos().atk_total|decimal }}</dd></div>
+      <div><dt>DEF total</dt><dd data-vista="def">{{ legion.calcular_atributos().def_total|decimal }}</dd></div>
+    </dl>
+    <p class="nota">Cifras después del contrato, sin formación. Máximo {{ limites.integrantes|miles }} integrantes por legión.</p>
+    <p class="mensaje mensaje-error" data-vista="mensaje" hidden></p>
     <div class="acciones acciones-columna">
-      <button class="btn btn-primario" type="submit">Firmar contrato</button>
-      <a class="btn btn-fantasma" href="{{ volver }}">{{ 'Volver a la batalla' if refuerzo else 'Volver' }}</a>
+      {% call m.accion("Descuenta el costo del presupuesto y suma las unidades. Se rechaza si no alcanza el dinero.") %}
+        <button class="boton boton-primario boton-bloque" type="submit" data-confirmar-contrato>Confirmar contrato</button>
+      {% endcall %}
+      {% call m.accion("Vuelve a la legión sin contratar.") %}
+        <a class="boton boton-secundario boton-bloque" href="{{ url_for('legiones.detalle', id_legion=legion.id) }}">Cancelar</a>
+      {% endcall %}
     </div>
   </aside>
 </form>

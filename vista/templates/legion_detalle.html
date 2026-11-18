@@ -2,114 +2,93 @@
 {% import "parciales/macros.html" as m %}
 {% block titulo %}{{ legion.nombre }}{% endblock %}
 {% block contenido %}
-{% set t = legion.totales %}
+{% set filas = legion.filas(atributos) %}
 <div class="encabezado">
   <div>
-    <p class="migas"><a href="{{ url_for('campana.panel') }}">Campaña</a> / {{ legion.nombre }}</p>
+    <p class="migas"><a href="{{ url_for('campana.panel') }}">{{ campana.nombre }}</a> / Legión</p>
     <h1>{{ legion.nombre }}</h1>
-    <p class="subtitulo">Fuerzas y recursos · Legatus {{ legion.legatus.nombre }} · Cónsul {{ legion.consul }}</p>
+    <p class="subtitulo">Legatus {{ legion.legatus.describir() }} · nombrado por el cónsul {{ campana.consul_nombre(legion.consul) }}</p>
   </div>
-  <div class="encabezado-acciones">
-    {{ m.traza("CU004 · RU003") }}
-    <a class="btn btn-secundario" href="{{ url_for('legiones.contratar', id_legion=legion.id) }}">Contratar tropas</a>
-    {% if legion.estado == 'lista' %}
-    <a class="btn btn-primario" href="{{ url_for('combate.preparar') }}">Preparar enfrentamiento</a>
+  <div class="acciones">
+    {% if en_combate %}
+    {% call m.accion("La legión está en combate: refuerzos y conversiones se hacen en la consola.") %}
+      <a class="boton boton-primario" href="{{ url_for('combate.consola') }}">Ir a la consola →</a>
+    {% endcall %}
+    {% else %}
+    {% call m.accion("Suma unidades del catálogo pagando su costo con el presupuesto.") %}
+      <a class="boton boton-primario" href="{{ url_for('legiones.contratar', id_legion=legion.id) }}">Contratar tropas</a>
+    {% endcall %}
+    {% call m.accion("Cambia nombre, cónsul, Legatus o presupuesto disponible.") %}
+      <a class="boton boton-secundario" href="{{ url_for('legiones.configurar', id_legion=legion.id) }}">Configurar</a>
+    {% endcall %}
+    <form method="post" action="{{ url_for('legiones.eliminar', id_legion=legion.id) }}"
+          data-confirmar="¿Disolver {{ legion.nombre }}? Se pierden sus tropas y su presupuesto. Los enfrentamientos pasados conservan su registro.">
+      {% call m.accion("Elimina la legión y sus tropas. No se puede deshacer.") %}
+        <button class="boton boton-peligro" type="submit">Disolver</button>
+      {% endcall %}
+    </form>
     {% endif %}
   </div>
 </div>
 
-{% if legion.estado != 'lista' %}
-<section class="tarjeta vacio-grande">
-  <h2>Esta legión todavía no tiene tropas</h2>
-  <p>El Legatus {{ legion.legatus.nombre }} dispone de {{ legion.presupuesto|miles }} denarios para reclutar. Sin tropas, la legión no puede entrar en combate.</p>
-  <a class="btn btn-primario" href="{{ url_for('legiones.contratar', id_legion=legion.id) }}">Contratar tropas</a>
-</section>
-{% else %}
 <dl class="kpis">
-  <div><dt>Soldados vivos</dt><dd>{{ t.soldados|miles }}</dd></div>
-  <div><dt>HP total</dt><dd>{{ t.hp|miles }}</dd></div>
-  <div><dt>ATK total</dt><dd>{{ t.atk|miles }}</dd></div>
-  <div><dt>DEF total</dt><dd>{{ t.def|miles }}</dd></div>
-  <div><dt>Sueldos por turno</dt><dd>{{ legion.mantenimiento.total|miles }}</dd></div>
-  <div><dt>Denarios disponibles</dt><dd>{{ legion.presupuesto|miles }}</dd></div>
+  {{ m.kpi("Integrantes", legion.integrantes()|miles, "Unidades vivas de todos los tipos. Máximo " ~ limites.integrantes|miles ~ " por legión.") }}
+  {{ m.kpi("Presupuesto disponible", legion.presupuesto|miles, "De " ~ legion.asignado|miles ~ " asignados; ya gastó " ~ (legion.asignado - legion.presupuesto)|miles ~ " en contratos, conversiones y sueldos.") }}
+  {{ m.kpi("Sueldos por turno", mantenimiento.total|miles, "Se pagan al cerrar cada turno de combate. Si no alcanza, la legión pierde el enfrentamiento.") }}
+  {{ m.kpi("HP total", legion.hp_actual()|miles ~ " / " ~ legion.hp_maximo()|miles, "Salud de todas las unidades. Las heridas conservan su HP entre enfrentamientos.") }}
 </dl>
 
-<div class="rejilla-detalle">
-  <section class="tarjeta">
-    <div class="tarjeta-titulo">
-      <h2>Contingente</h2>
-      <p class="nota">ATK y DEF incluyen los bonos del Legatus y de los ingenieros.</p>
-    </div>
-    <div class="tabla-desplazable">
-      <table class="tabla">
-        <thead>
-          <tr>
-            <th>Unidad</th>
-            <th class="num">Vivos</th>
-            <th>Proporción</th>
-            <th class="num">HP</th>
-            <th class="num">ATK</th>
-            <th class="num">DEF</th>
-            <th class="num">Sueldo base</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for f in legion.fuerzas %}
-          {% set pct = f.vivos|porcentaje(t.soldados) %}
-          <tr{{ ' class="fila-nula"'|safe if not f.vivos }}>
-            <td class="nowrap"><span class="punto u-{{ f.tipo }}"></span>{{ unidades[f.tipo].plural }}</td>
-            <td class="num">{{ f.vivos|miles }}</td>
-            <td>
-              <div class="proporcion">
-                <div class="mini-barra"><span class="u-{{ f.tipo }}" style="width: {{ '%.1f'|format(pct) }}%"></span></div>
-                <small>{{ pct|decimal }}%</small>
-              </div>
-            </td>
-            <td class="num">{{ f.hp|miles }}</td>
-            <td class="num">{{ f.atk|miles }}</td>
-            <td class="num">{{ f.def|miles }}</td>
-            <td class="num">{{ f.sueldo|miles }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-        <tfoot>
-          <tr>
-            <th>Total</th>
-            <th class="num">{{ t.soldados|miles }}</th>
-            <th></th>
-            <th class="num">{{ t.hp|miles }}</th>
-            <th class="num">{{ t.atk|miles }}</th>
-            <th class="num">{{ t.def|miles }}</th>
-            <th class="num">{{ legion.mantenimiento.base|miles }}</th>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  </section>
-
-  <div class="columna">
-    <section class="tarjeta">
-      <h2>Legatus {{ legion.legatus.nombre }}</h2>
-      <ul class="bonos bonos-grandes">
-        <li>ATK {{ legion.legatus.atk|signo }}</li>
-        <li>DEF {{ legion.legatus.def|signo }}</li>
-        <li>Costo {{ legion.legatus.costo|signo }}</li>
-      </ul>
-      <p class="nota">Designado por el cónsul {{ legion.consul }}.</p>
-    </section>
-    <section class="tarjeta">
-      <h2>Bonificaciones y sinergias</h2>
-      <ul class="lista-sinergias">
-        {% for sinergia in legion.sinergias %}
-        <li>{{ sinergia }}</li>
-        {% endfor %}
-      </ul>
-    </section>
-    <section class="tarjeta">
-      <h2>Sueldos por turno</h2>
-      {{ m.cuentas_mantenimiento(legion.mantenimiento, legion.legatus) }}
-    </section>
+<section class="panel">
+  <div class="panel-titulo">
+    <h2>Contingente</h2>
+    <p class="panel-ayuda">Tabla dinámica con los bonos del Legatus y de los ingenieros, sin formación. Cada unidad viva aporta su ATK y su DEF.</p>
   </div>
+  {{ m.tabla_fuerza(filas, atributos, mantenimiento) }}
+  {% if legion.integrantes() %}{{ m.composicion(legion.contar()) }}{{ m.leyenda() }}{% endif %}
+</section>
+
+<div class="rejilla-2">
+  <section class="panel">
+    <h2>Bonificaciones</h2>
+    <div class="rejilla-2 rejilla-apretada">
+      <div>
+        <h3 class="subtitulo-panel">Ataque {{ atributos.pct_atk|signo }}</h3>
+        {{ m.desglose(atributos.desglose_atk) }}
+      </div>
+      <div>
+        <h3 class="subtitulo-panel">Defensa {{ atributos.pct_def|signo }}</h3>
+        {{ m.desglose(atributos.desglose_def) }}
+      </div>
+    </div>
+    {{ m.chips(atributos.sinergias) }}
+    <p class="nota">Los ingenieros dan +1% DEF y +2% de daño de ballestas por cada {{ reglas.ingenieros_bloque }}. La formación se elige en cada turno de combate.</p>
+  </section>
+  <section class="panel">
+    <h2>Sueldos por turno</h2>
+    {{ m.cuentas_mantenimiento(mantenimiento) }}
+    <p class="nota">Cada {{ reglas.esclavos_bloque }} esclavos descuentan {{ reglas.esclavos_descuento }}% de los sueldos (máximo {{ limites.descuento_esclavos }}%). El %Costo del Legatus no cambia el precio de los contratos.</p>
+  </section>
 </div>
-{% endif %}
+
+<section class="panel">
+  <div class="panel-titulo">
+    <h2>Formaciones</h2>
+    <p class="panel-ayuda">Cómo quedaría la legión en cada formación con sus tropas actuales. En el primer turno de un enfrentamiento siempre forma en Triplex Acies.</p>
+  </div>
+  <div class="rejilla-3">
+    {% for f in formaciones %}
+    {% set e = f.estrategia %}
+    <article class="formacion{{ ' formacion-bloqueada' if f.motivo }}">
+      <h3>{{ e.nombre }} <small>{{ e.apodo }}</small></h3>
+      <p class="formacion-mods"><span>{{ e.mod_atk|signo }} ATK</span><span>{{ e.mod_def|signo }} DEF</span></p>
+      {% if f.motivo %}<p class="mensaje mensaje-aviso">No disponible: {{ f.motivo }}.</p>{% endif %}
+      <dl class="mini-kpis mini-kpis-2">
+        <div><dt>ATK total</dt><dd>{{ f.atributos.atk_total|decimal }}</dd></div>
+        <div><dt>DEF total</dt><dd>{{ f.atributos.def_total|decimal }}</dd></div>
+      </dl>
+      {{ m.chips(f.atributos.sinergias[1:]) }}
+    </article>
+    {% endfor %}
+  </div>
+</section>
 {% endblock %}

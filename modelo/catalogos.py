@@ -1,4 +1,8 @@
-"""Catálogos de referencia del enunciado oficial de 2026, tablas 2 y 3."""
+"""Catálogos de referencia del enunciado oficial de 2026 (tablas 2 y 3) y límites del sistema.
+
+Las clases del modelo leen de aquí sus valores base: si el enunciado cambia una cifra,
+basta con corregirla en este archivo.
+"""
 
 UNIDADES = ("legionario", "caballeria", "ballesta", "ingeniero", "esclavo")
 
@@ -41,7 +45,7 @@ CATALOGO = [
         "nombre": "Esclavo / Auxiliar",
         "plural": "Esclavos",
         "rol": "Logística y acarreo, no ataca",
-        "habilidad": "Por cada 50: reduce 15% el mantenimiento de la legión.",
+        "habilidad": "Por cada 50: reduce 15% el mantenimiento de la legión. Se puede convertir en legionario o caballería.",
         "hp": 5, "atk": 2, "def": 5, "costo": 1,
     },
 ]
@@ -64,7 +68,7 @@ ESTRATEGIAS = [
         "apodo": "Cuña",
         "descripcion": "Impacto frontal agresivo que requiere caballería.",
         "atk": 45, "def": -25,
-        "sinergia": "+50% de daño de caballería, pero la legión recibe +50% de daño.",
+        "sinergia": "+50% de daño de caballería, que también alcanza a los esclavos; la legión recibe +50% de daño.",
         "requisito": "Requiere caballería.",
     },
     {
@@ -77,6 +81,16 @@ ESTRATEGIAS = [
         "requisito": "Requiere legionarios.",
     },
 ]
+ESTRATEGIA = {e["clave"]: e for e in ESTRATEGIAS}
+
+# Límites del sistema (decisión de diseño, no del enunciado): evitan cifras absurdas
+# y mantienen ágil la simulación, que sigue el HP de cada unidad por separado.
+PRESUPUESTO_MAXIMO = 1_000_000
+INTEGRANTES_MAXIMOS = 10_000
+LEGIONES_MAXIMAS = 30
+# Si tras este turno ninguna legión cayó ni quedó sin fondos, el combate termina en empate:
+# evita enfrentamientos interminables cuando ninguna defensa cede.
+TURNOS_MAXIMOS = 100
 
 TIPOS_EVENTO = {
     "sistema": "Sistema",
@@ -89,4 +103,6 @@ TIPOS_EVENTO = {
     "conversion": "Conversión",
     "fin": "Fin",
 }
+
+# Momento de un turno en que ocurre cada suceso de la bitácora.
 ETAPAS = {None: "—", 0: "Preparación", 1: "Etapa 1", 2: "Etapa 2", 3: "Reagrupación"}

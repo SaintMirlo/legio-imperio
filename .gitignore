@@ -1,3 +1,6 @@
 .venv/
 __pycache__/
 *.pyc
+
+# Base de datos SQLite y clave de sesión locales (se crean al ejecutar la aplicación)
+instance/

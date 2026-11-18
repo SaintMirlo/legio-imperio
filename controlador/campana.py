@@ -1,56 +1,84 @@
-"""Inicio, campaña y persistencia (CU001, CU004, CU013, CU014)."""
-import json
-
+"""Inicio, campaña y persistencia en archivos (CU001, CU004, CU013, CU014)."""
 from flask import Blueprint, Response, flash, redirect, render_template, request, url_for
 
-from controlador.prototipo import obtener_prototipo
-from modelo.prototipo import ArchivoCampanaInvalido, validar_archivo_campana
+from controlador.sesion import abrir_campana, campana_actual, persistencia
+from modelo.archivo import exportar_campana, importar_campana, nombre_archivo
+from modelo.campana import Campana
+from modelo.errores import ArchivoCampanaInvalido, ReglaInvalida
+from modelo.textos import contar
 
 bp = Blueprint("campana", __name__)
 
 
+def _volver():
+    """Página desde la que se pidió la acción (solo rutas internas)."""
+    destino = request.form.get("volver") or ""
+    if destino.startswith("/") and not destino.startswith("//"):
+        return destino
+    return url_for("campana.inicio")
+
+
 @bp.get("/")
 def inicio():
-    return render_template("inicio.html", recientes=obtener_prototipo().recientes())
+    return render_template("inicio.html", campana=campana_actual(requerida=False))
 
 
 @bp.route("/campana/nueva", methods=["GET", "POST"])
 def nueva():
     if request.method == "POST":
-        nombre = request.form.get("nombre", "").strip() or "Nueva campaña"
-        flash(f"Creación simulada de «{nombre}». El recorrido continúa con la campaña de ejemplo del Hito 2.", "info")
+        try:
+            campana = Campana.iniciar(request.form.get("nombre"), request.form.get("consul_1"),
+                                      request.form.get("consul_2"))
+        except ReglaInvalida as error:
+            flash(str(error), "error")
+            return render_template("campana_nueva.html", valores=request.form), 400
+        persistencia().guardar_campana(campana)
+        abrir_campana(campana.id)
+        flash(f"Campaña «{campana.nombre}» creada. Crea al menos dos legiones y contrata sus tropas "
+              "para preparar un enfrentamiento.", "exito")
         return redirect(url_for("campana.panel"))
-    return render_template("campana_nueva.html", campana=obtener_prototipo().campana())
+    return render_template("campana_nueva.html", valores={}, anterior=campana_actual(requerida=False))
 
 
 @bp.get("/campana")
 def panel():
-    return render_template("campana_panel.html", **obtener_prototipo().contexto_campana())
+    return render_template("campana_panel.html", campana=campana_actual())
 
 
-@bp.get("/campana/exportar")
-def exportar():
-    """Descarga el ejemplo; la persistencia de una partida corresponde al Hito 3."""
-    prototipo = obtener_prototipo()
-    contenido = prototipo.archivo_de_ejemplo()
+@bp.get("/campana/guardar")
+def guardar():
+    """CU013: descarga la campaña completa; el navegador muestra el diálogo «Guardar como»."""
+    campana = campana_actual()
     return Response(
-        json.dumps(contenido, ensure_ascii=False, indent=2),
-        mimetype="application/json",
-        headers={"Content-Disposition": f'attachment; filename="{prototipo.campana()["archivo"]}"'},
+        exportar_campana(campana), mimetype="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{nombre_archivo(campana)}"',
+                 "Cache-Control": "no-store"},
     )
 
 
 @bp.post("/campana/cargar")
 def cargar():
+    """CU014: reconstruye la campaña del archivo y la deja abierta."""
     archivo = request.files.get("archivo")
-    if archivo is None or not (archivo.filename or "").lower().endswith(".json"):
-        flash("Ese archivo no es una campaña de Legio Imperium. Elige un archivo .json.", "error")
-        return redirect(url_for("campana.inicio"))
+    if archivo is None or not archivo.filename:
+        flash("Elige un archivo de campaña (.json) para cargarlo.", "error")
+        return redirect(_volver())
     try:
-        nombre = validar_archivo_campana(json.load(archivo))
-    except (ValueError, UnicodeError, RecursionError) as error:
-        mensaje = str(error) if isinstance(error, ArchivoCampanaInvalido) else "El archivo no contiene un JSON válido."
-        flash(mensaje, "error")
-        return redirect(url_for("campana.inicio"))
-    flash(f"Archivo de «{nombre}» validado. En el Hito 2 se muestra la campaña de ejemplo; todavía no se restaura una partida.", "info")
+        campana = importar_campana(archivo.read())
+    except ArchivoCampanaInvalido as error:
+        flash(str(error), "error")
+        return redirect(_volver())
+    reemplaza = persistencia().existe(campana.id)
+    nombre = archivo.filename.replace("\\", "/").rsplit("/", 1)[-1][:80]
+    campana.bitacora.registrar_suceso("sistema", f"Se recupera la campaña desde el archivo «{nombre}».")
+    campana.tocar()
+    persistencia().guardar_campana(campana)
+    abrir_campana(campana.id)
+    detalle = ("Reemplazó la versión que había en la base de datos." if reemplaza
+               else "Quedó guardada en la base de datos.")
+    flash(f"Campaña «{campana.nombre}» cargada: {contar(len(campana.legiones), 'legión', 'legiones')}, "
+          f"{contar(len(campana.enfrentamientos), 'enfrentamiento', 'enfrentamientos')} y "
+          f"{contar(len(campana.bitacora), 'suceso', 'sucesos')}. {detalle}", "exito")
+    if campana.enfrentamiento_activo():
+        return redirect(url_for("combate.consola"))
     return redirect(url_for("campana.panel"))

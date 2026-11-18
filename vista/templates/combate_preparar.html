@@ -2,75 +2,63 @@
 {% import "parciales/macros.html" as m %}
 {% block titulo %}Preparar enfrentamiento{% endblock %}
 {% block contenido %}
-{% set a, b = batalla.legiones %}
 <div class="encabezado">
   <div>
-    <p class="migas"><a href="{{ url_for('campana.panel') }}">Campaña</a> / Preparar enfrentamiento</p>
+    <p class="migas"><a href="{{ url_for('campana.panel') }}">{{ campana.nombre }}</a> / Batalla</p>
     <h1>Preparar enfrentamiento</h1>
-    <p class="subtitulo">Elige dos legiones con tropas y cuál ataca primero. En el primer turno ambas forman en Triplex Acies.</p>
+    <p class="subtitulo">Elige la legión que ataca primero y la que defiende. En cada turno la atacante ataca en la etapa 1 y la defensora en la etapa 2.</p>
   </div>
-  {{ m.traza("CU005 · RU004") }}
 </div>
 
-<form method="post" class="preparar">
-  <section class="tarjeta preparar-duelo">
-    <label class="campo campo-corto">
-      <span>Nombre de la batalla</span>
-      <input name="nombre" value="{{ batalla.nombre }}" required>
-    </label>
-    <div class="duelo">
-      {% for lado, elegida in [('a', a), ('b', b)] %}
+{% if campana.legiones|length < 2 %}
+<div class="panel vacio-grande">
+  <p>Se necesitan al menos dos legiones con tropas para iniciar un enfrentamiento. Ahora hay {{ campana.legiones|length }}.</p>
+  {% call m.accion("Nombra un Legatus y asigna el presupuesto de la nueva legión.") %}
+    <a class="boton boton-primario" href="{{ url_for('legiones.nueva') }}">+ Crear legión</a>
+  {% endcall %}
+</div>
+{% else %}
+<form class="formulario" method="post" novalidate data-preparar="{{ url_for('combate.comparar') }}">
+  <section class="panel">
+    <div class="rejilla-3">
       <label class="campo">
-        <span>Legión {{ lado|upper }}</span>
-        <select name="legion_{{ lado }}">
-          {% for legion in legiones.values() %}
-          <option value="{{ legion.id }}"{{ ' selected' if legion.id == elegida }}{{ ' disabled' if legion.estado != 'lista' }}>
-            {{ legion.nombre }}{{ ' (sin tropas)' if legion.estado != 'lista' }}
-          </option>
+        <span class="campo-etiqueta">Legión atacante</span>
+        <select class="control" name="atacante">
+          {% for legion in campana.legiones.values() %}
+          <option value="{{ legion.id }}"{{ ' selected' if legion.id == id_a }}>{{ legion.nombre }}{{ ' (sin tropas que ataquen)' if not legion.esta_lista() }}</option>
           {% endfor %}
         </select>
+        <span class="campo-ayuda">Ataca en la etapa 1 de cada turno y defiende en la etapa 2.</span>
       </label>
-      {% if loop.first %}<span class="vs" aria-hidden="true">VS</span>{% endif %}
-      {% endfor %}
+      <label class="campo">
+        <span class="campo-etiqueta">Legión defensora</span>
+        <select class="control" name="defensora">
+          {% for legion in campana.legiones.values() %}
+          <option value="{{ legion.id }}"{{ ' selected' if legion.id == id_b }}>{{ legion.nombre }}{{ ' (sin tropas que ataquen)' if not legion.esta_lista() }}</option>
+          {% endfor %}
+        </select>
+        <span class="campo-ayuda">Defiende en la etapa 1 y contraataca en la etapa 2.</span>
+      </label>
+      <label class="campo">
+        <span class="campo-etiqueta">Nombre del enfrentamiento</span>
+        <input class="control" name="nombre" value="{{ nombre }}" maxlength="60" required>
+        <span class="campo-ayuda">Identifica la batalla en la bitácora y en el historial.</span>
+      </label>
     </div>
-    <fieldset class="grupo opciones">
-      <legend>¿Quién ataca primero?</legend>
-      <label class="opcion"><input type="radio" name="atacante" value="a" checked> {{ legiones[a].nombre }} (Legión A)</label>
-      <label class="opcion"><input type="radio" name="atacante" value="b"> {{ legiones[b].nombre }} (Legión B)</label>
-    </fieldset>
   </section>
 
-  <section class="tarjeta">
-    <h2>Comparación al iniciar</h2>
-    <p class="nota">Con Triplex Acies (+10% ATK y +10% DEF), los bonos del Legatus y las sinergias activas.</p>
-    <table class="tabla tabla-compacta comparacion">
-      <thead>
-        <tr><th></th><th class="num">{{ legiones[a].nombre }}</th><th class="num">{{ legiones[b].nombre }}</th></tr>
-      </thead>
-      <tbody>
-        <tr><th>Legatus</th><td class="num">{{ legiones[a].legatus.nombre }}</td><td class="num">{{ legiones[b].legatus.nombre }}</td></tr>
-        <tr><th>Soldados</th><td class="num">{{ legiones[a].totales.soldados|miles }}</td><td class="num">{{ legiones[b].totales.soldados|miles }}</td></tr>
-        <tr><th>HP total</th><td class="num">{{ inicio[a].hp|miles }}</td><td class="num">{{ inicio[b].hp|miles }}</td></tr>
-        <tr><th>ATK total</th><td class="num">{{ inicio[a].atk|miles }}</td><td class="num">{{ inicio[b].atk|miles }}</td></tr>
-        <tr><th>DEF total</th><td class="num">{{ inicio[a].def|miles }}</td><td class="num">{{ inicio[b].def|miles }}</td></tr>
-        <tr><th>Denarios</th><td class="num">{{ inicio[a].presupuesto|miles }}</td><td class="num">{{ inicio[b].presupuesto|miles }}</td></tr>
-        <tr><th>Sueldos por turno</th><td class="num">{{ legiones[a].mantenimiento.total|miles }}</td><td class="num">{{ legiones[b].mantenimiento.total|miles }}</td></tr>
-      </tbody>
-    </table>
-  </section>
-
-  <section class="tarjeta">
-    <h2>Validaciones</h2>
-    <ul class="validaciones">
-      {% for tipo, texto in validaciones %}
-      <li class="validacion-{{ tipo }}">{{ texto }}</li>
-      {% endfor %}
-    </ul>
-  </section>
+  <div id="comparacion" aria-live="polite">
+    {% include "parciales/comparacion.html" %}
+  </div>
 
   <div class="acciones">
-    <a class="btn btn-fantasma" href="{{ url_for('campana.panel') }}">Volver al panel</a>
-    <button class="btn btn-primario btn-grande" type="submit">Alea iacta est: iniciar batalla</button>
+    {% call m.accion("Abre el turno 1 con ambas legiones en Triplex Acies. Mientras dure, las legiones no se pueden configurar ni disolver.") %}
+      <button class="boton boton-acento boton-grande" type="submit">Iniciar enfrentamiento →</button>
+    {% endcall %}
+    {% call m.accion("Vuelve al panel para crear legiones o contratar tropas.") %}
+      <a class="boton boton-secundario boton-grande" href="{{ url_for('campana.panel') }}">Volver al panel</a>
+    {% endcall %}
   </div>
 </form>
+{% endif %}
 {% endblock %}

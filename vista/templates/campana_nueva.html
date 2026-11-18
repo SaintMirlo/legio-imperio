@@ -4,45 +4,38 @@
 {% block contenido %}
 <div class="encabezado">
   <div>
-    <p class="migas"><a href="{{ url_for('campana.inicio') }}">Inicio</a> / Nueva campaña</p>
-    <h1>Nueva campaña</h1>
-    <p class="subtitulo">El Senado es representado por dos cónsules, que después designan a los Legatus de cada legión.</p>
+    <p class="migas">Nueva campaña</p>
+    <h1>Crear campaña</h1>
+    <p class="subtitulo">El Senado nombra a los dos cónsules; cada cónsul designa a los Legatus que comandan las legiones.</p>
   </div>
-  {{ m.traza("CU001 · RU001") }}
 </div>
 
-<div class="rejilla-formulario">
-  <form class="tarjeta formulario" method="post">
-    <h2>Datos de la campaña</h2>
+<form class="panel formulario" method="post" novalidate>
+  <label class="campo">
+    <span class="campo-etiqueta">Nombre de la campaña</span>
+    <input class="control" name="nombre" value="{{ valores.nombre }}" maxlength="60" required autofocus
+           placeholder="Por ejemplo: Guerra civil">
+    <span class="campo-ayuda">Aparece en el panel y en el nombre del archivo al guardarla. Hasta 60 caracteres.</span>
+  </label>
+  <div class="rejilla-2">
     <label class="campo">
-      <span>Nombre de la campaña</span>
-      <input name="nombre" value="{{ campana.nombre }}" required>
+      <span class="campo-etiqueta">Cónsul I</span>
+      <input class="control" name="consul_1" value="{{ valores.consul_1 }}" maxlength="60" required>
+      <span class="campo-ayuda">Primer cónsul del Senado. Nombra a los Legatus de sus legiones.</span>
     </label>
-    <fieldset class="grupo">
-      <legend>Cónsules del Senado</legend>
-      <div class="campos-2">
-        {% for consul in campana.consules %}
-        <label class="campo">
-          <span>{{ 'Primer' if loop.first else 'Segundo' }} cónsul</span>
-          <input name="consul_{{ loop.index }}" value="{{ consul.nombre }}" required>
-        </label>
-        {% endfor %}
-      </div>
-    </fieldset>
-    <div class="acciones">
-      <a class="btn btn-fantasma" href="{{ url_for('campana.inicio') }}">Cancelar</a>
-      <button class="btn btn-primario" type="submit">Crear campaña</button>
-    </div>
-  </form>
-
-  <aside class="tarjeta">
-    <h2>Cadena de mando</h2>
-    <ol class="cadena">
-      <li><strong>Senatus Populusque Romanus</strong><span>Representado por dos cónsules.</span></li>
-      <li><strong>Cónsul</strong><span>Designa a los Legatus.</span></li>
-      <li><strong>Legatus</strong><span>Comanda una legión y aporta bonos de ATK y DEF.</span></li>
-      <li><strong>Legión</strong><span>Legionarios, caballería, ballestas, ingenieros y esclavos.</span></li>
-    </ol>
-  </aside>
-</div>
+    <label class="campo">
+      <span class="campo-etiqueta">Cónsul II</span>
+      <input class="control" name="consul_2" value="{{ valores.consul_2 }}" maxlength="60" required>
+      <span class="campo-ayuda">Debe ser una persona distinta del cónsul I.</span>
+    </label>
+  </div>
+  <div class="acciones">
+    {% call m.accion("Crea la campaña vacía y la deja abierta. Luego podrás crear legiones y contratar tropas.") %}
+      <button class="boton boton-primario" type="submit">Crear campaña</button>
+    {% endcall %}
+    {% call m.accion("Vuelve al inicio sin crear nada" ~ (" y mantiene abierta «" ~ anterior.nombre ~ "»." if anterior else ".")) %}
+      <a class="boton boton-secundario" href="{{ url_for('campana.inicio') }}">Cancelar</a>
+    {% endcall %}
+  </div>
+</form>
 {% endblock %}

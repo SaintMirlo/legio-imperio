@@ -3,44 +3,30 @@
 {% block titulo %}Inicio{% endblock %}
 {% block contenido %}
 <section class="portada">
-  <p class="portada-sobre">Año 49 a.C. · República Romana</p>
+  <img class="portada-logo" src="{{ url_for('static', filename='img/logo.svg') }}" alt="" width="88" height="88">
   <h1 class="portada-titulo">Legio Imperium</h1>
-  <p class="portada-lema">Sistema de Gestión Táctica y Simulación de Batalla del Ejército Romano</p>
-  <p class="portada-cita">«Alea iacta est»</p>
   <div class="portada-acciones">
-    <a class="btn btn-oro btn-grande" href="{{ url_for('campana.nueva') }}">Nueva campaña</a>
-    <button type="button" class="btn btn-cabecera btn-grande" data-abrir-cargar>Cargar campaña…</button>
+    {% if campana %}
+    {% call m.accion("Abre el panel de la campaña que estabas usando, con sus legiones y su enfrentamiento en curso.") %}
+      <a class="boton boton-acento boton-grande" href="{{ url_for('campana.panel') }}">Continuar «{{ campana.nombre }}» →</a>
+    {% endcall %}
+    {% endif %}
+    {% call m.accion("Pide un nombre y los dos cónsules del Senado." ~ (" La campaña actual sigue en la base de datos; guárdala en un archivo para volver a ella." if campana else "")) %}
+      <a class="boton {{ 'boton-secundario' if campana else 'boton-acento' }} boton-grande" href="{{ url_for('campana.nueva') }}">Nueva campaña</a>
+    {% endcall %}
+    {% call m.accion("Restaura una campaña desde un archivo .json creado con «Guardar campaña».") %}
+      <button type="button" class="boton boton-secundario boton-grande" data-abrir-cargar>Cargar campaña…</button>
+    {% endcall %}
   </div>
 </section>
 
-<div class="rejilla-inicio">
-  <section class="tarjeta">
-    <div class="tarjeta-titulo">
-      <h2>Campañas recientes</h2>
-      {{ m.traza("CU014 · RU010") }}
-    </div>
-    <ul class="recientes">
-      {% for c in recientes %}
-      <li>
-        <div>
-          <strong>{{ c.nombre }}</strong>
-          <span>{{ c.detalle }}</span>
-        </div>
-        <time>{{ c.guardada }}</time>
-        <a class="btn btn-secundario btn-chico" href="{{ url_for('campana.panel') }}">{{ 'Continuar' if loop.first else 'Abrir' }}</a>
-      </li>
-      {% endfor %}
-    </ul>
-  </section>
-
-  <section class="tarjeta">
-    <h2>Cómo se juega una campaña</h2>
-    <ol class="pasos-juego">
-      <li><strong>Organiza</strong> la cadena de mando: Senado, cónsules, Legatus y legiones.</li>
-      <li><strong>Recluta</strong> tropas del catálogo sin pasarte del presupuesto.</li>
-      <li><strong>Combate</strong> por turnos con Triplex Acies, Cuneus u Orbis.</li>
-      <li><strong>Revisa</strong> bajas y sueldos en la bitácora, y guarda la campaña.</li>
-    </ol>
-  </section>
-</div>
+<section class="panel">
+  <h2>Cómo se juega una campaña</h2>
+  <ol class="pasos-juego">
+    <li><strong>Organiza</strong> la cadena de mando: el Senado nombra dos cónsules y cada legión tiene un Legatus con bonos de ATK y DEF entre −25% y +25%.</li>
+    <li><strong>Recluta</strong> tropas del catálogo con el presupuesto de cada legión. El Legatus no cambia el precio de los contratos.</li>
+    <li><strong>Combate</strong> por turnos de dos etapas con Triplex Acies, Cuneus u Orbis. Al cerrar cada turno, cada legión paga los sueldos de sus tropas.</li>
+    <li><strong>Revisa</strong> bajas, sueldos y conversiones en la bitácora, y guarda la campaña en un archivo para continuarla después.</li>
+  </ol>
+</section>
 {% endblock %}

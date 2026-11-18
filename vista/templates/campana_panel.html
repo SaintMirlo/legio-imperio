@@ -2,30 +2,57 @@
 {% import "parciales/macros.html" as m %}
 {% block titulo %}Panel de campaña{% endblock %}
 {% block contenido %}
+{% set resumen = campana.resumen() %}
+{% set activo = campana.enfrentamiento_activo() %}
 <div class="encabezado">
   <div>
-    <p class="migas">Campaña creada el {{ campana.creada }}</p>
+    <p class="migas">Campaña · creada el {{ campana.creada|fecha }}</p>
     <h1>{{ campana.nombre }}</h1>
-    <p class="subtitulo">Panel de gestión: cadena de mando, legiones y recursos.</p>
+    <p class="subtitulo">Panel de gestión: cadena de mando, legiones y recursos.
+      <span class="etiqueta {{ 'etiqueta-marca' if activo else 'etiqueta-ok' }}">{{ 'En combate' if activo else 'En preparación' }}</span></p>
   </div>
-  <div class="encabezado-acciones">
-    {{ m.traza("CU001 · CU004 · RU001 · RU003") }}
-    <a class="btn btn-secundario" href="{{ url_for('legiones.nueva') }}">+ Crear legión</a>
-    <a class="btn btn-primario" href="{{ url_for('combate.preparar') }}">Preparar enfrentamiento</a>
+  <div class="acciones">
+    {% call m.accion("Nombra un Legatus, elige su cónsul y asigna el presupuesto de la legión.") %}
+      <a class="boton boton-secundario" href="{{ url_for('legiones.nueva') }}">+ Crear legión</a>
+    {% endcall %}
+    {% if activo %}
+    {% call m.accion("Vuelve a la consola de «" ~ activo.nombre ~ "», turno " ~ activo.turno_numero ~ ".") %}
+      <a class="boton boton-primario" href="{{ url_for('combate.consola') }}">Ir a la consola →</a>
+    {% endcall %}
+    {% else %}
+    {% call m.accion("Elige la legión atacante y la defensora. Ambas deben tener tropas que ataquen.") %}
+      <a class="boton boton-primario" href="{{ url_for('combate.preparar') }}">Preparar enfrentamiento →</a>
+    {% endcall %}
+    {% endif %}
   </div>
 </div>
 
 <dl class="kpis">
-  <div><dt>Legiones</dt><dd>{{ legiones|length }}</dd></div>
-  <div><dt>Listas para combatir</dt><dd>{{ legiones.values()|selectattr('estado', 'equalto', 'lista')|list|length }}</dd></div>
-  <div><dt>Soldados</dt><dd>{{ legiones.values()|sum(attribute='totales.soldados')|miles }}</dd></div>
-  <div><dt>Denarios disponibles</dt><dd>{{ legiones.values()|sum(attribute='presupuesto')|miles }}</dd></div>
+  {{ m.kpi("Legiones", resumen.legiones|miles, "Legiones de ambos cónsules en esta campaña (máximo " ~ limites.legiones ~ ").") }}
+  {{ m.kpi("Listas para combatir", resumen.listas|miles, "Tienen al menos un legionario, jinete o ballesta: las únicas tropas que atacan.") }}
+  {{ m.kpi("Soldados", resumen.soldados|miles, "Unidades vivas de todas las legiones, esclavos incluidos. Cada legión admite hasta " ~ limites.integrantes|miles ~ ".") }}
+  {{ m.kpi("Denarios disponibles", resumen.denarios|miles, "Suma de los presupuestos. Pagan contratos, conversiones de esclavos y los sueldos de cada turno.") }}
 </dl>
 
-<section class="tarjeta">
-  <div class="tarjeta-titulo">
+{% if activo %}
+<section class="panel panel-destacado">
+  <div class="panel-titulo">
+    <div>
+      <p class="migas">Enfrentamiento en curso</p>
+      <h2>{{ activo.nombre }}</h2>
+      <p class="panel-ayuda">{{ activo.participantes.a.nombre }} contra {{ activo.participantes.b.nombre }} · turno {{ activo.turno_numero }} · {{ fases[activo.turno_actual.fase] }}</p>
+    </div>
+    {% call m.accion("Sigue el combate paso a paso o en modo automático.") %}
+      <a class="boton boton-acento" href="{{ url_for('combate.consola') }}">Continuar combate →</a>
+    {% endcall %}
+  </div>
+</section>
+{% endif %}
+
+<section class="panel">
+  <div class="panel-titulo">
     <h2>Cadena de mando</h2>
-    <p class="nota">Elige una legión para ver sus fuerzas.</p>
+    <p class="panel-ayuda">Senado → cónsules → Legatus → legiones. Pulsa una legión para ver sus fuerzas.</p>
   </div>
   <div class="organigrama">
     <ul>
@@ -33,23 +60,28 @@
         <div class="nodo nodo-senado"><small>Senado</small>SPQR</div>
         <ul>
           {% for consul in campana.consules %}
+          {% set numero = loop.index %}
           <li>
-            <div class="nodo nodo-consul"><small>Cónsul</small>{{ consul.nombre }}</div>
+            <div class="nodo nodo-consul"><small>Cónsul {{ 'I' if numero == 1 else 'II' }}</small>{{ consul }}</div>
+            {% set propias = campana.legiones_de_consul(numero) %}
+            {% if propias %}
             <ul>
-              {% for id in consul.legiones %}
-              {% set legion = legiones[id] %}
+              {% for legion in propias %}
               <li>
                 <div class="nodo nodo-legatus"><small>Legatus</small>{{ legion.legatus.nombre }}</div>
                 <ul>
                   <li>
-                    <a class="nodo nodo-legion{{ ' nodo-vacio' if legion.estado != 'lista' }}" href="{{ url_for('legiones.detalle', id_legion=id) }}">
-                      <small>{{ 'Legión' if legion.estado == 'lista' else 'Legión sin tropas' }}</small>{{ legion.nombre }}
+                    <a class="nodo nodo-legion{{ ' nodo-vacio' if not legion.esta_lista() }}" href="{{ url_for('legiones.detalle', id_legion=legion.id) }}">
+                      <small>{{ 'Legión' if legion.esta_lista() else 'Legión sin tropas que ataquen' }}</small>{{ legion.nombre }}
                     </a>
                   </li>
                 </ul>
               </li>
               {% endfor %}
             </ul>
+            {% else %}
+            <ul><li><span class="nodo nodo-vacio"><small>Sin legiones</small>Aún no nombra Legatus</span></li></ul>
+            {% endif %}
           </li>
           {% endfor %}
         </ul>
@@ -62,39 +94,85 @@
   <h2>Legiones</h2>
   {{ m.leyenda() }}
 </div>
+{% if campana.legiones %}
 <div class="rejilla-legiones">
-  {% for legion in legiones.values() %}
-  <article class="tarjeta legion">
+  {% for legion in campana.legiones.values() %}
+  {% set atributos = legion.calcular_atributos() %}
+  {% set sueldos = legion.calcular_mantenimiento().total %}
+  {% set combate = campana.en_combate(legion) %}
+  <article class="panel legion">
     <header class="legion-cabecera">
       <h3><a href="{{ url_for('legiones.detalle', id_legion=legion.id) }}">{{ legion.nombre }}</a></h3>
-      {% if legion.estado == 'lista' %}
-      <span class="etiqueta etiqueta-ok">Lista</span>
-      {% else %}
-      <span class="etiqueta etiqueta-aviso">Sin tropas</span>
-      {% endif %}
+      {% if combate %}<span class="etiqueta etiqueta-marca">En combate</span>
+      {% elif legion.esta_lista() %}<span class="etiqueta etiqueta-ok">Lista</span>
+      {% else %}<span class="etiqueta etiqueta-aviso">Sin tropas que ataquen</span>{% endif %}
     </header>
-    <p class="legion-mando">Legatus {{ legion.legatus.nombre }} · Cónsul {{ legion.consul }}</p>
+    <p class="legion-mando">Legatus {{ legion.legatus.nombre }} · Cónsul {{ campana.consul_nombre(legion.consul) }}</p>
     <ul class="bonos">
-      <li>ATK {{ legion.legatus.atk|signo }}</li>
-      <li>DEF {{ legion.legatus.def|signo }}</li>
-      <li>Costo {{ legion.legatus.costo|signo }}</li>
+      <li>ATK {{ legion.legatus.bono_atk|signo }}</li>
+      <li>DEF {{ legion.legatus.bono_def|signo }}</li>
+      <li>Costo {{ legion.legatus.bono_costo|signo }}</li>
     </ul>
-    {% if legion.estado == 'lista' %}
     <dl class="mini-kpis">
-      <div><dt>Soldados</dt><dd>{{ legion.totales.soldados|miles }}</dd></div>
-      <div><dt>ATK</dt><dd>{{ legion.totales.atk|miles }}</dd></div>
-      <div><dt>DEF</dt><dd>{{ legion.totales.def|miles }}</dd></div>
+      <div><dt>Soldados</dt><dd>{{ legion.integrantes()|miles }}</dd></div>
+      <div><dt>ATK</dt><dd>{{ atributos.atk_total|round|int|miles }}</dd></div>
+      <div><dt>DEF</dt><dd>{{ atributos.def_total|round|int|miles }}</dd></div>
+      <div><dt>Sueldos</dt><dd>{{ sueldos|miles }}</dd></div>
       <div><dt>Denarios</dt><dd>{{ legion.presupuesto|miles }}</dd></div>
     </dl>
-    {{ m.composicion(legion.tropas, legion.totales.soldados) }}
-    {% else %}
-    <p class="vacio">Todavía no recluta tropas. Dispone de {{ legion.presupuesto|miles }} denarios.</p>
-    {% endif %}
-    <footer class="legion-acciones">
-      <a class="btn btn-fantasma btn-chico" href="{{ url_for('legiones.detalle', id_legion=legion.id) }}">Ver fuerzas</a>
-      <a class="btn btn-secundario btn-chico" href="{{ url_for('legiones.contratar', id_legion=legion.id) }}">Contratar tropas</a>
+    <p class="nota">ATK y DEF sin formación (Legatus e ingenieros incluidos). Sueldos: lo que paga por turno de combate.</p>
+    {% if legion.integrantes() %}{{ m.composicion(legion.contar()) }}{% else %}<p class="vacio">Sin tropas. Dispone de {{ legion.presupuesto|miles }} denarios para contratar.</p>{% endif %}
+    <footer class="acciones acciones-tarjeta">
+      {% call m.accion("Tabla de fuerzas, bonos y sueldos.") %}
+        <a class="boton boton-secundario boton-chico" href="{{ url_for('legiones.detalle', id_legion=legion.id) }}">Ver fuerzas</a>
+      {% endcall %}
+      {% if not combate %}
+      {% call m.accion("Suma unidades pagando el costo del catálogo.") %}
+        <a class="boton boton-primario boton-chico" href="{{ url_for('legiones.contratar', id_legion=legion.id) }}">Contratar tropas</a>
+      {% endcall %}
+      {% endif %}
     </footer>
   </article>
   {% endfor %}
 </div>
+{% else %}
+<div class="panel vacio-grande">
+  <p>Todavía no hay legiones. Crea al menos dos y contrata sus tropas para preparar un enfrentamiento.</p>
+  {% call m.accion("Primer paso: nombra un Legatus y asigna el presupuesto.") %}
+    <a class="boton boton-primario" href="{{ url_for('legiones.nueva') }}">+ Crear la primera legión</a>
+  {% endcall %}
+</div>
+{% endif %}
+
+{% if campana.enfrentamientos %}
+<section class="panel">
+  <div class="panel-titulo">
+    <h2>Enfrentamientos</h2>
+    <p class="panel-ayuda">Historial de batallas de la campaña. Cada resultado guarda sus turnos y su bitácora.</p>
+  </div>
+  <div class="tabla-envoltura">
+  <table class="tabla">
+    <thead><tr><th>#</th><th>Nombre</th><th>Atacante</th><th>Defensora</th><th class="num">Turnos</th><th>Resultado</th><th></th></tr></thead>
+    <tbody>
+      {% for e in campana.enfrentamientos|reverse %}
+      <tr>
+        <td>{{ e.id }}</td>
+        <td>{{ e.nombre }}</td>
+        <td>{{ e.participantes.a.nombre }}</td>
+        <td>{{ e.participantes.b.nombre }}</td>
+        <td class="num">{{ e.turno_numero }}</td>
+        <td>
+          {% if e.en_curso %}<span class="etiqueta etiqueta-marca">En curso</span>
+          {% elif e.ganador %}<span class="etiqueta etiqueta-ok">Vence {{ e.participantes[e.ganador].nombre }}</span>
+          {% elif e.estado == 'abandonada' %}<span class="etiqueta">Abandonado</span>
+          {% else %}<span class="etiqueta etiqueta-aviso">Empate</span>{% endif %}
+        </td>
+        <td class="num"><a class="enlace" href="{{ url_for('combate.consola') if e.en_curso else url_for('combate.resultado', id_enfrentamiento=e.id) }}">{{ 'Consola' if e.en_curso else 'Ver resultado' }} →</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
 {% endblock %}

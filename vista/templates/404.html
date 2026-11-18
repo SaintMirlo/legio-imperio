@@ -1,9 +1,12 @@
 {% extends "base.html" %}
+{% import "parciales/macros.html" as m %}
 {% block titulo %}Página no encontrada{% endblock %}
 {% block contenido %}
-<section class="tarjeta vacio-grande">
+<section class="panel vacio-grande">
   <h1>Esta ruta no figura en los mapas del Imperio</h1>
-  <p>La página que buscas no existe en el prototipo.</p>
-  <a class="btn btn-primario" href="{{ url_for('campana.inicio') }}">Volver al inicio</a>
+  <p>La página no existe o la legión o el enfrentamiento ya no están en la campaña.</p>
+  {% call m.accion("Vuelve a la pantalla de inicio.") %}
+    <a class="boton boton-primario" href="{{ url_for('campana.inicio') }}">Volver al inicio</a>
+  {% endcall %}
 </section>
 {% endblock %}

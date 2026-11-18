@@ -4,31 +4,40 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}{% endblock %} · Legio Imperium</title>
-  <link rel="icon" href="{{ url_for('static', filename='img/escudo.svg') }}" type="image/svg+xml">
+  <link rel="icon" href="{{ url_for('static', filename='img/logo.svg') }}" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Source+Sans+3:wght@400;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pinyon+Script&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/legio.css') }}">
 </head>
-<body class="{% block clase_body %}{% endblock %}">
+<body>
+  {% include "parciales/iconos.html" %}
   {% set seccion = request.blueprint %}
   <header class="cabecera">
     <div class="cabecera-interior">
       <a class="marca" href="{{ url_for('campana.inicio') }}">
-        <img src="{{ url_for('static', filename='img/escudo.svg') }}" alt="" width="30" height="30">
+        <img src="{{ url_for('static', filename='img/logo.svg') }}" alt="" width="34" height="34">
         <span>Legio Imperium</span>
       </a>
       <nav class="nav" aria-label="Secciones">
-        <a href="{{ url_for('campana.panel') }}"{% if seccion == 'legiones' or request.endpoint in ('campana.panel', 'campana.nueva') %} class="activo" aria-current="page"{% endif %}>Campaña</a>
-        <a href="{{ url_for('combate.preparar') }}"{% if seccion == 'combate' %} class="activo" aria-current="page"{% endif %}>Batalla</a>
-        <a href="{{ url_for('bitacora.ver') }}"{% if seccion == 'bitacora' %} class="activo" aria-current="page"{% endif %}>Bitácora</a>
+        <a href="{{ url_for('campana.panel') }}" title="Panel de gestión: cadena de mando, legiones y recursos"
+           {%- if seccion in ('legiones',) or request.endpoint in ('campana.panel', 'campana.nueva') %} class="activo" aria-current="page"{% endif %}>Campaña</a>
+        <a href="{{ url_for('combate.consola') }}" title="Preparar un enfrentamiento y simularlo por turnos"
+           {%- if seccion == 'combate' %} class="activo" aria-current="page"{% endif %}>Batalla</a>
+        <a href="{{ url_for('bitacora.ver') }}" title="Historial de todos los sucesos de la campaña"
+           {%- if seccion == 'bitacora' %} class="activo" aria-current="page"{% endif %}>Bitácora</a>
       </nav>
-      <div class="persistencia">
-        <span class="campana-actual" title="Campaña abierta">{{ campana_actual.nombre }}</span>
-        <button type="button" class="btn btn-cabecera" data-guardar="{{ url_for('campana.exportar') }}" data-nombre="{{ campana_actual.archivo }}">Guardar campaña</button>
-        <form class="form-cargar" action="{{ url_for('campana.cargar') }}" method="post" enctype="multipart/form-data">
-          <button type="button" class="btn btn-cabecera" data-abrir-cargar>Cargar campaña</button>
+      <div class="archivo">
+        <div class="accion accion-cabecera">
+          <button type="button" class="boton boton-acento boton-chico" data-guardar="{{ url_for('campana.guardar') }}"
+                  data-prefijo="{{ archivo_prefijo or '' }}"{{ ' disabled' if not archivo_prefijo }}>Guardar campaña</button>
+          <small>Descarga toda la campaña en un archivo .json.</small>
+        </div>
+        <form class="accion accion-cabecera" action="{{ url_for('campana.cargar') }}" method="post" enctype="multipart/form-data">
+          <input type="hidden" name="volver" value="{{ request.path }}">
+          <button type="button" class="boton boton-claro boton-chico" data-abrir-cargar>Cargar campaña</button>
           <input type="file" name="archivo" accept=".json,application/json" data-cargar hidden>
+          <small>Abre un .json guardado y la restaura.</small>
         </form>
       </div>
     </div>

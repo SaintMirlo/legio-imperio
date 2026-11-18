@@ -1,23 +1,43 @@
-{# Casos de uso y requisitos que cubre la pantalla (trazabilidad con el informe).
-   Al pasar el mouse por cada código se ve su nombre. #}
-{% macro traza(texto) -%}
-<span class="traza" title="Casos de uso y requisitos que cubre esta pantalla">
-  {%- for codigo in texto.split(" · ") %}{{ " · " if not loop.first }}<abbr title="{{ trazabilidad[codigo] }}">{{ codigo }}</abbr>{% endfor -%}
-</span>
+{# Botón o enlace con su mini descripción debajo: qué hace y qué reglas aplica. #}
+{% macro accion(ayuda, clase='') -%}
+<div class="accion {{ clase }}">
+  {{ caller() }}
+  <p class="accion-ayuda">{{ ayuda }}</p>
+</div>
 {%- endmacro %}
 
-{# Barra de salud: se anima desde el valor anterior («antes») hasta el actual. #}
-{% macro barra(etiqueta, actual, maximo, antes=none, grande=false) -%}
-{%- set pct = actual|porcentaje(maximo) -%}
-{%- set pct_antes = (actual if antes is none else antes)|porcentaje(maximo) -%}
+{# Ícono de un tipo de tropa junto a su texto, sin que se separen al cortar la línea
+   (los dibujos están en parciales/iconos.html). #}
+{% macro icono(tipo, texto) -%}
+<span class="con-icono"><svg class="icono-unidad icono-{{ tipo }}" aria-hidden="true" focusable="false"><use href="#icono-{{ tipo }}"/></svg>{{ texto }}</span>
+{%- endmacro %}
+
+{# Indicador con su explicación. #}
+{% macro kpi(etiqueta, valor, ayuda) -%}
+<div class="kpi">
+  <dt>{{ etiqueta }}</dt>
+  <dd>{{ valor }}</dd>
+  <p class="kpi-ayuda">{{ ayuda }}</p>
+</div>
+{%- endmacro %}
+
+{# Barra de salud. b: {clave, etiqueta, actual, referencia, antes}. Se anima de «antes» a «actual». #}
+{% macro barra(b, grande=false) -%}
+{%- set pct = b.actual|porcentaje(b.referencia) -%}
+{%- set pct_antes = b.antes|porcentaje(b.referencia) -%}
 {%- set nivel = 'alto' if pct > 60 else ('medio' if pct > 30 else 'bajo') -%}
-<div class="barra nivel-{{ nivel }}{{ ' barra-grande' if grande }}{{ ' barra-nula' if not maximo }}"
-     style="--antes: {{ '%.1f'|format(pct_antes) }}%; --ahora: {{ '%.1f'|format(pct) }}%">
+<div class="barra nivel-{{ nivel }}{{ ' barra-grande' if grande }}{{ ' barra-nula' if not b.referencia }}{{ ' barra-golpe' if pct_antes > pct }}"
+     data-barra="{{ b.clave }}" style="--antes: {{ '%.2f'|format(pct_antes) }}%; --ahora: {{ '%.2f'|format(pct) }}%">
   <div class="barra-cabecera">
-    <span>{{ etiqueta }}</span>
-    <span class="num">{% if maximo %}{{ actual|miles }} / {{ maximo|miles }}{% else %}—{% endif %}</span>
+    <span>{% if b.tipo %}{{ icono(b.tipo, b.etiqueta) }}{% else %}{{ b.etiqueta }}{% endif %}</span>
+    <span class="num">
+      {%- if b.referencia %}{{ b.actual|miles }} / {{ b.referencia|miles }}
+        {%- if b.antes > b.actual %} <em class="perdida">−{{ (b.antes - b.actual)|miles }}</em>{% endif %}
+      {%- else %}—{% endif -%}
+    </span>
   </div>
-  <div class="barra-pista" role="progressbar" aria-label="{{ etiqueta }}" aria-valuemin="0" aria-valuemax="{{ maximo }}" aria-valuenow="{{ actual }}">
+  <div class="barra-pista" role="progressbar" aria-label="{{ b.etiqueta }}" aria-valuemin="0"
+       aria-valuemax="{{ b.referencia }}" aria-valuenow="{{ b.actual }}">
     <div class="barra-perdida"></div>
     <div class="barra-relleno"></div>
   </div>
@@ -25,10 +45,12 @@
 {%- endmacro %}
 
 {# Barra apilada con la composición de una legión por tipo de unidad. #}
-{% macro composicion(tropas, total) -%}
+{% macro composicion(conteo) -%}
+{%- set total = conteo.values()|sum -%}
 <div class="composicion" role="img" aria-label="Composición de la legión">
-  {%- for clave, cantidad in tropas.items() if cantidad %}
-  <span class="u-{{ clave }}" style="width: {{ '%.2f'|format(cantidad|porcentaje(total)) }}%" title="{{ unidades[clave].plural }}: {{ cantidad|miles }}"></span>
+  {%- for tipo in tipos_unidad if conteo[tipo] %}
+  <span class="u-{{ tipo }}" style="width: {{ '%.2f'|format(conteo[tipo]|porcentaje(total)) }}%"
+        title="{{ unidades[tipo].plural }}: {{ conteo[tipo]|miles }}"></span>
   {%- endfor %}
 </div>
 {%- endmacro %}
@@ -36,71 +58,117 @@
 {% macro leyenda() -%}
 <ul class="leyenda">
   {%- for u in catalogo %}
-  <li><span class="punto u-{{ u.clave }}"></span>{{ u.plural }}</li>
+  <li>{{ icono(u.clave, u.plural) }}</li>
   {%- endfor %}
 </ul>
 {%- endmacro %}
 
-{# Desglose de los sueldos por turno: base, bono del Legatus y descuento por esclavos. #}
-{% macro cuentas_mantenimiento(mant, legatus, titulo='Por turno') -%}
-<dl class="cuentas cuentas-chicas">
-  <div><dt>Sueldos base</dt><dd>{{ mant.base|miles }}</dd></div>
-  <div><dt>Legatus ({{ legatus.costo|signo }})</dt><dd>{{ '+' if mant.legatus > 0 }}{{ mant.legatus|miles }}</dd></div>
-  <div><dt>Esclavos ({{ mant.esclavos }} → −{{ mant.esclavos_pct }}%)</dt><dd>−{{ mant.descuento|miles }}</dd></div>
-  <div class="cuentas-total"><dt>{{ titulo }}</dt><dd>{{ mant.total|miles }}</dd></div>
+{# Tabla dinámica del contingente: vivos, salud, ataque, defensa y costo por tipo de unidad. #}
+{% macro tabla_fuerza(filas, atributos, mantenimiento, compacta=false) -%}
+<div class="tabla-envoltura">
+<table class="tabla tabla-fuerza{{ ' tabla-compacta' if compacta }}">
+  <thead>
+    <tr>
+      <th scope="col">Tipo</th>
+      <th scope="col" class="num" title="Unidades vivas">Vivos</th>
+      {% if not compacta %}<th scope="col" class="num" title="Unidades con menos HP que el máximo">Heridos</th>{% endif %}
+      <th scope="col" class="num" title="HP actual / HP máximo del grupo">HP</th>
+      {% if not compacta %}<th scope="col" class="num" title="Ataque de una unidad con todos los bonos">ATK c/u</th>
+      <th scope="col" class="num" title="Defensa de una unidad con todos los bonos">DEF c/u</th>{% endif %}
+      <th scope="col" class="num" title="Ataque que aporta el grupo">ATK</th>
+      <th scope="col" class="num" title="Defensa que aporta el grupo">DEF</th>
+      <th scope="col" class="num" title="Sueldo por turno antes del Legatus y de los esclavos">Costo</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for f in filas %}
+    <tr class="{{ 'fila-vacia' if not f.vivos }}">
+      <th scope="row">{{ icono(f.tipo, f.nombre) }}
+        {%- if f.vivos and not f.ataca %} <span class="marca-chica" title="No ataca en esta formación o nunca ataca">no ataca</span>{% endif %}
+        {%- if f.vivos and f.inmune %} <span class="marca-chica marca-ok" title="Orbis: no recibe daño">inmune</span>{% endif %}
+      </th>
+      <td class="num">{{ f.vivos|miles }}</td>
+      {% if not compacta %}<td class="num">{{ f.heridos|miles }}</td>{% endif %}
+      <td class="num">{{ f.hp|miles }}<span class="tenue"> / {{ f.hp_maximo|miles }}</span></td>
+      {% if not compacta %}<td class="num">{{ f.atk_unidad|entero_o_decimal }}</td>
+      <td class="num">{{ f.def_unidad|entero_o_decimal }}</td>{% endif %}
+      <td class="num">{{ f.atk_total|decimal }}</td>
+      <td class="num">{{ f.def_total|decimal }}</td>
+      <td class="num">{{ f.sueldo|miles }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr class="tabla-total">
+      <th scope="row">Total</th>
+      <td class="num">{{ filas|sum(attribute='vivos')|miles }}</td>
+      {% if not compacta %}<td class="num">{{ filas|sum(attribute='heridos')|miles }}</td>{% endif %}
+      <td class="num">{{ filas|sum(attribute='hp')|miles }}<span class="tenue"> / {{ filas|sum(attribute='hp_maximo')|miles }}</span></td>
+      {% if not compacta %}<td class="num tenue">{{ atributos.pct_atk|signo }}</td>
+      <td class="num tenue">{{ atributos.pct_def|signo }}</td>{% endif %}
+      <td class="num">{{ atributos.atk_total|decimal }}</td>
+      <td class="num">{{ atributos.def_total|decimal }}</td>
+      <td class="num" title="Sueldos que paga por turno: {{ mantenimiento.detalle() }}">{{ mantenimiento.total|miles }}</td>
+    </tr>
+  </tfoot>
+</table>
+</div>
+{%- endmacro %}
+
+{# Desglose de los sueldos por turno: base, %Costo del Legatus y descuento por esclavos. #}
+{% macro cuentas_mantenimiento(m) -%}
+<dl class="cuentas">
+  <div><dt>Sueldos base (costo de catálogo)</dt><dd>{{ m.base|miles }}</dd></div>
+  <div><dt>Legatus ({{ m.pct_legatus|signo }} costo)</dt><dd>{{ '+' if m.ajuste_legatus > 0 }}{{ m.ajuste_legatus|miles }}</dd></div>
+  <div><dt>Esclavos ({{ m.esclavos|miles }} → −{{ m.pct_descuento }}%)</dt><dd>{{ '−' if m.descuento }}{{ m.descuento|miles }}</dd></div>
+  <div class="cuentas-total"><dt>Paga por turno</dt><dd>{{ m.total|miles }}</dd></div>
 </dl>
 {%- endmacro %}
 
-{# Panel de una legión en la consola de batalla. #}
-{% macro panel_legion(legion, actual, anterior, batalla) -%}
-{%- set estado = actual.estado[legion.id] -%}
-{%- set previo = anterior.estado[legion.id] -%}
-{%- set ataca = legion.id == actual.atacante -%}
-<section class="tarjeta panel-legion {{ 'panel-ataca' if ataca else 'panel-defiende' }}">
-  <header class="panel-legion-cabecera">
-    <span class="rol {{ 'rol-ataca' if ataca else 'rol-defiende' }}">
-      {%- if actual.etapa %}{{ 'Ataca' if ataca else 'Defiende' }}{% else %}{{ 'Ataca primero' if ataca else 'Defiende primero' }}{% endif -%}
-    </span>
-    <h2>{{ legion.nombre }}</h2>
-    <p>Legatus {{ legion.legatus.nombre }} · ATK {{ legion.legatus.atk|signo }} · DEF {{ legion.legatus.def|signo }}</p>
-  </header>
+{# Desglose de los porcentajes de ATK o DEF. #}
+{% macro desglose(partes) -%}
+<ul class="desglose">
+  {%- for origen, pct in partes %}
+  <li><span>{{ origen }}</span><strong>{{ pct|signo }}</strong></li>
+  {%- endfor %}
+</ul>
+{%- endmacro %}
 
-  <label class="campo formacion">
-    <span>Formación táctica</span>
-    <select name="formacion_{{ legion.id }}" form="form-siguiente"{{ ' disabled' if not actual.formaciones_editables }}>
-      {%- for e in estrategias %}
-      <option value="{{ e.clave }}"{{ ' selected' if e.clave == estado.formacion }}>{{ e.nombre }} ({{ e.atk|signo }} ATK, {{ e.def|signo }} DEF)</option>
-      {%- endfor %}
-    </select>
-    <small>
-      {%- if actual.formaciones_editables %}{{ estado.validacion }}
-      {%- elif actual.turno == 1 %}Bloqueada: Triplex Acies es obligatoria en el primer turno.
-      {%- else %}Bloqueada hasta el final del turno.{% endif -%}
-    </small>
-  </label>
-  {%- if actual.formaciones_editables %}
-  {# CU003 extiende CU006: al elegir la formación, la legión puede contratar más tropas. #}
-  <a class="btn btn-secundario btn-chico" href="{{ url_for('combate.contratar', id_legion=legion.id) }}">+ Contratar tropas</a>
-  {%- endif %}
+{% macro chips(textos) -%}
+{% if textos %}
+<ul class="chips">
+  {%- for texto in textos %}
+  <li>{{ texto }}</li>
+  {%- endfor %}
+</ul>
+{% endif %}
+{%- endmacro %}
 
-  {{ barra('HP total', estado.hp, batalla.hp_inicial[legion.id], previo.hp, grande=true) }}
+{# Sucesos de la bitácora en un panel con scroll. #}
+{% macro registro(eventos, visto=none, mostrar_batalla=false, alto='') -%}
+<ol class="registro {{ alto }}" data-autoscroll>
+  {%- for e in eventos %}
+  <li class="registro-evento tipo-{{ e.tipo }}{{ ' nuevo' if visto is not none and e.numero > visto }}">
+    <div class="registro-meta">
+      <span class="etiqueta etiqueta-tipo tipo-{{ e.tipo }}">{{ e.tipo_nombre }}</span>
+      {%- if mostrar_batalla and e.enfrentamiento %}<span>Batalla {{ e.enfrentamiento }}</span>{% endif %}
+      {%- if e.turno %}<span>Turno {{ e.turno }}</span>{% endif %}
+      {%- if e.etapa is not none %}<span>{{ e.etapa_nombre }}</span>{% endif %}
+      <time datetime="{{ e.instante }}" title="{{ e.instante|fecha }}">{{ e.instante|hora }}</time>
+    </div>
+    <p>{{ e.texto }}</p>
+  </li>
+  {%- else %}
+  <li class="registro-vacio">Todavía no hay sucesos.</li>
+  {%- endfor %}
+</ol>
+{%- endmacro %}
 
-  <dl class="stats">
-    <div><dt>ATK total</dt><dd>{{ estado.atk|miles }}</dd></div>
-    <div><dt>DEF total</dt><dd>{{ estado.def|miles }}</dd></div>
-    <div><dt>Denarios</dt><dd>{{ estado.presupuesto|miles }}</dd></div>
-  </dl>
-
-  <div class="barras-tropas">
-    {%- for u in catalogo %}
-    {{ barra(u.plural, estado.vivos[u.clave], batalla.tropas_iniciales[legion.id][u.clave], previo.vivos[u.clave]) }}
-    {%- endfor %}
-  </div>
-
-  <ul class="chips">
-    {%- for sinergia in estado.sinergias %}
-    <li>{{ sinergia }}</li>
-    {%- endfor %}
-  </ul>
-</section>
+{# Mensajes de validación de un enfrentamiento: ok, aviso o error. #}
+{% macro mensajes(lista) -%}
+<ul class="mensajes">
+  {%- for nivel, texto in lista %}
+  <li class="mensaje mensaje-{{ nivel }}">{{ texto }}</li>
+  {%- endfor %}
+</ul>
 {%- endmacro %}

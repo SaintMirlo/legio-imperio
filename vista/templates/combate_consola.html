@@ -1,117 +1,27 @@
 {% extends "base.html" %}
 {% import "parciales/macros.html" as m %}
-{% block titulo %}{{ actual.titulo }}{% endblock %}
+{% block titulo %}Consola · {{ enfrentamiento.nombre }}{% endblock %}
 {% block contenido %}
-{% set r = actual.resultado %}
-{% set a, b = batalla.legiones %}
 <div class="encabezado">
   <div>
-    <p class="migas"><a href="{{ url_for('combate.preparar') }}">Batalla</a> / Consola de simulación</p>
-    <h1>{{ batalla.nombre }}</h1>
-    <p class="subtitulo">{{ actual.titulo }}{% if actual.etapa %}: ataca la {{ legiones[actual.atacante].nombre }}{% endif %}</p>
+    <p class="migas"><a href="{{ url_for('campana.panel') }}">{{ campana.nombre }}</a> / Batalla</p>
+    <h1>{{ enfrentamiento.nombre }}</h1>
+    <p class="subtitulo">{{ enfrentamiento.participantes.a.nombre }} contra {{ enfrentamiento.participantes.b.nombre }}. Cada turno: preparación → etapa 1 → etapa 2 → sueldos.</p>
   </div>
-  {{ m.traza("CU006 · CU007 · CU008 · CU010 · CU013 · RU005 · RU006 · RU009") }}
+  <div class="acciones">
+    {% call m.accion("Cuántos pasos se han resuelto: cada turno tiene tres (etapa 1, etapa 2 y sueldos).") %}
+      <span class="contador-pasos" data-contador-pasos>Paso {{ enfrentamiento.pasos }}</span>
+    {% endcall %}
+    <form method="post" action="{{ url_for('combate.abandonar') }}" data-solo-en-curso
+          data-confirmar="¿Abandonar «{{ enfrentamiento.nombre }}»? Termina sin vencedor y las legiones conservan sus tropas y presupuestos actuales.">
+      {% call m.accion("Termina el enfrentamiento sin vencedor. Las bajas y los gastos se mantienen.") %}
+        <button class="boton boton-secundario boton-peligro-suave" type="submit">Abandonar</button>
+      {% endcall %}
+    </form>
+  </div>
 </div>
 
-{# Recorrido de la batalla: la reagrupación ocupa una posición entre ambos turnos. #}
-{% set posicion = paso if paso < 3 else paso + 1 %}
-<ol class="linea-tiempo" aria-label="Avance de la batalla">
-  {% for turno, hitos in [('Turno 1', ['Preparación', 'Etapa 1', 'Etapa 2', 'Reagrupación']), ('Turno 2', ['Preparación', 'Etapa 1', 'Etapa 2', 'Cierre'])] %}
-  {% set base = loop.index0 * 4 %}
-  <li class="linea-turno">
-    <span class="linea-turno-nombre">{{ turno }}</span>
-    <ol>
-      {% for hito in hitos %}
-      {% set pos = base + loop.index0 %}
-      <li class="{{ 'hecha' if pos < posicion else ('actual' if pos == posicion) }}"{% if pos == posicion %} aria-current="step"{% endif %}>{{ hito }}</li>
-      {% endfor %}
-    </ol>
-  </li>
-  {% endfor %}
-</ol>
-
-<form id="form-siguiente" class="tarjeta controles" method="{{ siguiente.metodo }}" action="{{ siguiente.url }}"{% if auto %} data-auto-segundos="3"{% endif %}>
-  {% for nombre, valor in siguiente.campos.items() %}
-  <input type="hidden" name="{{ nombre }}" value="{{ valor }}">
-  {% endfor %}
-  <div class="controles-grupo">
-    <a class="btn btn-fantasma" href="{{ url_for('combate.preparar') }}">⟲ Reiniciar</a>
-    <button class="btn btn-primario" type="submit">▶ Paso a paso: {{ siguiente.texto }}</button>
-    <button class="btn btn-secundario" type="submit" name="auto" value="1">⏩ Automático</button>
-    {% if not auto %}
-    {# CU013 extiende CU007: guardar el progreso sin salir de la batalla (en automático, primero se pausa). #}
-    <button type="button" class="btn btn-fantasma" data-guardar="{{ url_for('campana.exportar') }}" data-nombre="{{ campana_actual.archivo }}">Guardar progreso</button>
-    {% endif %}
-  </div>
-  {% if auto %}
-  <p class="auto-estado">Modo automático: avanza en <strong data-cuenta>3</strong> s · <a href="{{ url_for('combate.consola', paso=paso) }}">⏸ Pausar</a></p>
-  {% else %}
-  <p class="auto-estado auto-apagado">Automático avanza solo hasta que haga falta una decisión tuya.</p>
-  {% endif %}
-</form>
-
-<div class="campo-batalla">
-  {{ m.panel_legion(legiones[a], actual, anterior, batalla) }}
-
-  <section class="tarjeta centro">
-    <p class="centro-etiqueta">{{ actual.titulo }}</p>
-    {% if r %}
-    <p class="centro-duelo"><strong>{{ legiones[actual.atacante].nombre }}</strong> ataca a <strong>{{ legiones[actual.defensor].nombre }}</strong></p>
-    <div class="formula">
-      <div><span>ATK atacante</span><strong>{{ r.atk|miles }}</strong></div>
-      <span class="formula-op" aria-hidden="true">−</span>
-      <div><span>DEF defensor</span><strong>{{ r.def|miles }}</strong></div>
-    </div>
-    <div class="dano">
-      <span>Daño causado</span>
-      <strong>{{ r.dano|miles }}</strong>
-      {% if r.modificador %}<small>{{ r.modificador }}: {{ r.dano_base|miles }} → {{ r.dano|miles }}</small>{% endif %}
-    </div>
-    <h3>Reparto según el atacante</h3>
-    <ul class="reparto">
-      {% for tipo, pct, dano in r.reparto %}
-      <li><span class="punto u-{{ tipo }}"></span><span>{{ unidades[tipo].plural }}</span><span class="num">{{ pct|decimal }}%</span><strong class="num">{{ dano|miles }}</strong></li>
-      {% endfor %}
-    </ul>
-    <h3>Bajas de la {{ legiones[actual.defensor].nombre }}</h3>
-    <ul class="bajas">
-      {% for tipo, n in r.bajas.items() if n %}
-      <li><strong>−{{ n }}</strong> {{ unidades[tipo].plural|lower }}</li>
-      {% endfor %}
-    </ul>
-    {% elif actual.formaciones_editables %}
-    <p class="centro-duelo">{{ actual.nota }}</p>
-    <ul class="estrategias">
-      {% for e in estrategias %}
-      <li>
-        <strong>{{ e.nombre }} <small>({{ e.apodo }})</small></strong>
-        <span>{{ e.atk|signo }} ATK · {{ e.def|signo }} DEF</span>
-        <small>{{ e.sinergia }} {{ e.requisito }}</small>
-      </li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <p class="centro-duelo">{{ actual.nota }}</p>
-    <p class="nota">Pulsa <strong>Paso a paso</strong> para resolver la etapa 1 o <strong>Automático</strong> para ver el turno completo.</p>
-    {% endif %}
-  </section>
-
-  {{ m.panel_legion(legiones[b], actual, anterior, batalla) }}
+<div id="batalla" class="consola" data-consola>
+  {% include "parciales/batalla.html" %}
 </div>
-
-<section class="tarjeta consola">
-  <div class="tarjeta-titulo">
-    <h2>Consola de eventos</h2>
-    <a href="{{ url_for('bitacora.ver') }}">Abrir bitácora completa →</a>
-  </div>
-  <ol class="consola-lineas" data-autoscroll>
-    {% for e in eventos %}
-    <li class="evento evento-{{ e.tipo }}{{ ' evento-nuevo' if e.paso == paso }}">
-      <time>{{ e.instante[-8:] }}</time>
-      <span class="evento-tipo">{{ tipos_evento[e.tipo] }}</span>
-      <span>{{ e.texto }}</span>
-    </li>
-    {% endfor %}
-  </ol>
-</section>
 {% endblock %}

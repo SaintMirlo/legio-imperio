@@ -1,9 +1,12 @@
 {% extends "base.html" %}
+{% import "parciales/macros.html" as m %}
 {% block titulo %}{{ titulo }}{% endblock %}
 {% block contenido %}
-<section class="tarjeta vacio-grande">
+<section class="panel vacio-grande">
   <h1>{{ titulo }}</h1>
   <p>{{ mensaje }}</p>
-  <a class="btn btn-primario" href="{{ url_for('campana.inicio') }}">Volver al inicio</a>
+  {% call m.accion("Vuelve a la pantalla de inicio.") %}
+    <a class="boton boton-primario" href="{{ url_for('campana.inicio') }}">Volver al inicio</a>
+  {% endcall %}
 </section>
 {% endblock %}

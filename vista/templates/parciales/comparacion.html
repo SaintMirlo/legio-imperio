@@ -1,0 +1,31 @@
+{% import "parciales/macros.html" as m %}
+{% set c = comparacion %}
+<section class="panel">
+  <h2>Validación</h2>
+  {{ m.mensajes(c.mensajes) }}
+</section>
+{% if c.dano %}
+<div class="rejilla-2">
+  {% for lado in ['a', 'b'] %}
+  {% set legion = c.legiones[lado] %}
+  {% set atr = c.atributos[lado] %}
+  <section class="panel">
+    <p class="migas">{{ 'Atacante' if lado == 'a' else 'Defensora' }} · en Triplex Acies</p>
+    <h2>{{ legion.nombre }}</h2>
+    <p class="panel-ayuda">Legatus {{ legion.legatus.describir() }} · {{ legion.presupuesto|miles }} denarios</p>
+    {{ m.tabla_fuerza(legion.filas(atr), atr, legion.calcular_mantenimiento(), compacta=true) }}
+    {{ m.chips(atr.sinergias) }}
+  </section>
+  {% endfor %}
+</div>
+<section class="panel previsto">
+  <h2>Daño previsto en el turno 1</h2>
+  <ul class="previsto-lista">
+    <li><strong>Etapa 1:</strong> {{ c.legiones.a.nombre }} (ATK {{ c.atributos.a.atk_x100|centesimas }}) contra {{ c.legiones.b.nombre }} (DEF {{ c.atributos.b.def_x100|centesimas }}):
+      {{ (c.dano[1]|miles ~ ' de daño') if c.dano[1] else 'la defensa resiste' }}.</li>
+    <li><strong>Etapa 2:</strong> {{ c.legiones.b.nombre }} (ATK {{ c.atributos.b.atk_x100|centesimas }}) contra {{ c.legiones.a.nombre }} (DEF {{ c.atributos.a.def_x100|centesimas }}):
+      {{ (c.dano[2]|miles ~ ' de daño') if c.dano[2] else 'la defensa resiste' }}.</li>
+  </ul>
+  <p class="nota">Daño = ATK total del atacante − DEF total del defensor. Se reparte entre legionarios, caballería y ballestas según cuántos son, y cada golpe elige al azar un objetivo válido. La etapa 2 se recalcula con las tropas que sobrevivan a la etapa 1.</p>
+</section>
+{% endif %}

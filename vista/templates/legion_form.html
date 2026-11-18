@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% import "parciales/macros.html" as m %}
+{% set editar = legion is not none %}
+{% block titulo %}{{ 'Configurar ' ~ legion.nombre if editar else 'Nueva legión' }}{% endblock %}
+{% block contenido %}
+<div class="encabezado">
+  <div>
+    <p class="migas"><a href="{{ url_for('campana.panel') }}">{{ campana.nombre }}</a> / {{ 'Configurar legión' if editar else 'Nueva legión' }}</p>
+    <h1>{{ legion.nombre if editar else 'Crear legión' }}</h1>
+    <p class="subtitulo">
+      {%- if editar %}Cambia el nombre, el cónsul, el Legatus o el presupuesto disponible. Las tropas se mantienen.
+      {%- else %}Define el nombre, el cónsul que nombra al Legatus, sus bonificaciones y el presupuesto.{% endif -%}
+    </p>
+  </div>
+</div>
+
+<form class="formulario rejilla-formulario" method="post" novalidate>
+  <section class="panel">
+    <h2>Legión</h2>
+    <label class="campo">
+      <span class="campo-etiqueta">Nombre</span>
+      <input class="control" name="nombre" value="{{ valores.nombre }}" maxlength="60" required {{ 'autofocus' if not editar }}
+             placeholder="Por ejemplo: Legio XIII Gemina">
+      <span class="campo-ayuda">Único dentro de la campaña. Hasta 60 caracteres.</span>
+    </label>
+    <label class="campo">
+      <span class="campo-etiqueta">Cónsul que nombra al Legatus</span>
+      <select class="control" name="consul">
+        {% for consul in campana.consules %}
+        <option value="{{ loop.index }}"{{ ' selected' if valores.consul|string == loop.index|string }}>Cónsul {{ 'I' if loop.first else 'II' }}: {{ consul }}</option>
+        {% endfor %}
+      </select>
+      <span class="campo-ayuda">Ubica a la legión en la cadena de mando: Senado → cónsul → Legatus → legión.</span>
+    </label>
+    <label class="campo">
+      <span class="campo-etiqueta">{{ 'Presupuesto disponible' if editar else 'Presupuesto' }} (denarios)</span>
+      <input class="control" type="number" name="presupuesto" value="{{ valores.presupuesto }}"
+             min="{{ 0 if editar else 1 }}" max="{{ limites.presupuesto }}" step="1" required inputmode="numeric">
+      <span class="campo-ayuda">
+        {%- if editar %}Fondos que tiene ahora la legión, entre 0 y {{ limites.presupuesto|miles }}. Ya gastó {{ (legion.asignado - legion.presupuesto)|miles }} en contratos, conversiones y sueldos.
+        {%- else %}Paga los contratos de tropas y los sueldos de cada turno de combate. Entre 1 y {{ limites.presupuesto|miles }}.{% endif -%}
+      </span>
+    </label>
+  </section>
+
+  <section class="panel">
+    <h2>Legatus</h2>
+    <label class="campo">
+      <span class="campo-etiqueta">Nombre del Legatus</span>
+      <input class="control" name="legatus" value="{{ valores.legatus }}" maxlength="60" required placeholder="Por ejemplo: Marco Antonio">
+      <span class="campo-ayuda">Comandante de la legión. Hasta 60 caracteres.</span>
+    </label>
+    <label class="campo">
+      <span class="campo-etiqueta">Bonificación de ataque <output for="bono_atk" class="valor-bono">{{ (valores.bono_atk or 0)|int|signo }}</output></span>
+      <input class="deslizador" type="range" id="bono_atk" name="bono_atk" min="-25" max="25" step="1" value="{{ valores.bono_atk or 0 }}" data-bono>
+      <span class="campo-ayuda">%ATK de toda la legión, de −25% a +25%. Se suma a la formación y a las sinergias.</span>
+    </label>
+    <label class="campo">
+      <span class="campo-etiqueta">Bonificación de defensa <output for="bono_def" class="valor-bono">{{ (valores.bono_def or 0)|int|signo }}</output></span>
+      <input class="deslizador" type="range" id="bono_def" name="bono_def" min="-25" max="25" step="1" value="{{ valores.bono_def or 0 }}" data-bono>
+      <span class="campo-ayuda">%DEF de toda la legión, de −25% a +25%.</span>
+    </label>
+    <div class="costo-legatus">
+      <span>%Costo del Legatus</span>
+      <strong id="bono-costo">{{ ((valores.bono_atk or 0)|int + (valores.bono_def or 0)|int)|signo }}</strong>
+      <p class="campo-ayuda">%ATK + %DEF. Solo modifica los sueldos de cada turno, nunca el precio de los contratos. Ej.: +25% ATK y 0% DEF → +25% costo; −20% ATK y +20% DEF → 0% costo.</p>
+    </div>
+  </section>
+
+  <div class="acciones acciones-formulario">
+    {% if editar %}
+    {% call m.accion("Guarda los cambios y los anota en la bitácora. No se puede mientras la legión combate.") %}
+      <button class="boton boton-primario" type="submit">Guardar cambios</button>
+    {% endcall %}
+    {% call m.accion("Vuelve a las fuerzas de la legión sin cambiar nada.") %}
+      <a class="boton boton-secundario" href="{{ url_for('legiones.detalle', id_legion=legion.id) }}">Cancelar</a>
+    {% endcall %}
+    {% else %}
+    {% call m.accion("Crea la legión sin tropas y te lleva al catálogo para contratarlas.") %}
+      <button class="boton boton-primario" type="submit">Crear legión y contratar tropas →</button>
+    {% endcall %}
+    {% call m.accion("Vuelve al panel sin crear la legión.") %}
+      <a class="boton boton-secundario" href="{{ url_for('campana.panel') }}">Cancelar</a>
+    {% endcall %}
+    {% endif %}
+  </div>
+</form>
+{% endblock %}
